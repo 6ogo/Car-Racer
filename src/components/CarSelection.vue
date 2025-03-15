@@ -281,7 +281,7 @@ export default {
 
             // Create camera
             this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-            this.camera.position.set(3, 1.5, 3);
+            this.camera.position.set(0, 2, 10);
 
             // Create renderer
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -415,10 +415,14 @@ export default {
         },
 
         startGame() {
+            console.log("Start Game button clicked!");
+            
             // Combine car data with selected color
             const carData = { ...this.cars[this.selectedCarIndex] };
             carData.color = this.carColors[this.selectedColorIndex].hex;
-
+            
+            console.log("Emitting car-selected event with data:", carData);
+            
             // Emit the selected car data to the parent component
             this.$emit('car-selected', carData);
         }
@@ -437,11 +441,18 @@ export default {
     align-items: center;
     padding: 20px;
     color: white;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 100;
+}
+
+.selection-header {
+    margin-bottom: 20px;
 }
 
 h2 {
     font-size: 36px;
-    margin-bottom: 30px;
     text-shadow: 0 0 10px rgba(255, 215, 0, 0.7);
 }
 

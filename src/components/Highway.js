@@ -1,6 +1,8 @@
 // src/components/Highway.js
 import { Colors } from './common'
 import * as THREE from 'three'
+import Motorbike from './Motorbike'
+import Truck from './Truck'
 
 export default class Highway {
   constructor() {
@@ -25,7 +27,7 @@ export default class Highway {
     this.createSide(-160)
     this.createSide(160)
     
-    // Create array to store obstacles (other cars, trucks)
+    // Create array to store obstacles (other cars, trucks, motorbikes)
     this.obstacles = []
     
     // Create array to store coins
@@ -125,7 +127,7 @@ export default class Highway {
     this.segments.push(segment)
   }
   
-  // Create a car obstacle
+  // Create an obstacle
   createObstacle(type, lane, distance) {
     let obstacle
     const posZ = lane * 100 - 100  // 3 lanes: -100, 0, 100
@@ -152,37 +154,14 @@ export default class Highway {
       this.addWheels(obstacle, 20, -12.5, -20)
     } 
     else if (type === 'truck') {
-      // Truck obstacle (longer)
-      obstacle = new THREE.Object3D()
-      
-      const cabinGeom = new THREE.BoxGeometry(40, 35, 40, 1, 1, 1)
-      const cabinMat = new THREE.MeshPhongMaterial({
-        color: Colors.darkGray,
-        flatShading: true
-      })
-      
-      const cabin = new THREE.Mesh(cabinGeom, cabinMat)
-      cabin.position.x = -30
-      obstacle.add(cabin)
-      
-      const trailerGeom = new THREE.BoxGeometry(100, 40, 45, 1, 1, 1)
-      const trailerMat = new THREE.MeshPhongMaterial({
-        color: Colors.lightGray,
-        flatShading: true
-      })
-      
-      const trailer = new THREE.Mesh(trailerGeom, trailerMat)
-      trailer.position.x = 20
-      trailer.position.y = 2.5
-      obstacle.add(trailer)
-      
-      // Add wheels
-      this.addWheels(obstacle, -30, -17.5, 20)
-      this.addWheels(obstacle, -30, -17.5, -20)
-      this.addWheels(obstacle, 0, -20, 22.5)
-      this.addWheels(obstacle, 0, -20, -22.5)
-      this.addWheels(obstacle, 40, -20, 22.5)
-      this.addWheels(obstacle, 40, -20, -22.5)
+      // Use the new Truck class
+      const truck = new Truck()
+      obstacle = truck.mesh
+    }
+    else if (type === 'motorbike') {
+      // Use the new Motorbike class
+      const motorbike = new Motorbike()
+      obstacle = motorbike.mesh
     }
     
     obstacle.position.set(distance, 30, posZ)
@@ -324,11 +303,33 @@ export default class Highway {
     
     for (let i = 0; i < this.obstacles.length; i++) {
       const obstacle = this.obstacles[i]
-      const obstacleBoundingBox = {
-        xMin: obstacle.mesh.position.x - (obstacle.type === 'truck' ? 70 : 30),
-        xMax: obstacle.mesh.position.x + (obstacle.type === 'truck' ? 70 : 30),
-        zMin: obstacle.mesh.position.z - (obstacle.type === 'truck' ? 25 : 20),
-        zMax: obstacle.mesh.position.z + (obstacle.type === 'truck' ? 25 : 20)
+      
+      // Set bounding box based on vehicle type
+      let obstacleBoundingBox = {}
+      
+      if (obstacle.type === 'truck') {
+        obstacleBoundingBox = {
+          xMin: obstacle.mesh.position.x - 50,
+          xMax: obstacle.mesh.position.x + 50,
+          zMin: obstacle.mesh.position.z - 15,
+          zMax: obstacle.mesh.position.z + 15
+        }
+      } 
+      else if (obstacle.type === 'motorbike') {
+        obstacleBoundingBox = {
+          xMin: obstacle.mesh.position.x - 25,
+          xMax: obstacle.mesh.position.x + 25,
+          zMin: obstacle.mesh.position.z - 10,
+          zMax: obstacle.mesh.position.z + 10
+        }
+      }
+      else { // car default
+        obstacleBoundingBox = {
+          xMin: obstacle.mesh.position.x - 30,
+          xMax: obstacle.mesh.position.x + 30,
+          zMin: obstacle.mesh.position.z - 20,
+          zMax: obstacle.mesh.position.z + 20
+        }
       }
       
       // Simple AABB collision detection

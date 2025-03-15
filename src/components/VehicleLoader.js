@@ -391,6 +391,52 @@ export default class VehicleLoader {
   }
   
   /**
+   * Prepare the vehicle for animation by identifying wheels and adding animation capabilities
+   * @param {THREE.Object3D} model - The vehicle model
+   * @param {boolean} animateWheels - Whether to animate the wheels (default: true)
+   */
+  prepareForAnimation(model, animateWheels = true) {
+    model.userData = model.userData || {};
+    model.userData.wheels = [];
+    
+    model.traverse(child => {
+      // Identify wheel meshes based on their name
+      if (child.isMesh && child.name && 
+          (child.name.toLowerCase().includes('wheel') || 
+           child.name.toLowerCase().includes('tire'))) {
+        
+        child.userData = child.userData || {};
+        child.userData.isWheel = animateWheels; // Only mark as wheel if animation is enabled
+        child.castShadow = true;
+        child.receiveShadow = true;
+        
+        // Store reference to wheel meshes for animation
+        if (animateWheels) {
+          model.userData.wheels.push(child);
+        }
+      }
+      
+      // Make sure all meshes cast and receive shadows
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    
+    // Add animation method to the model
+    model.animateWheels = function(speed) {
+      if (!animateWheels) return; // Skip animation if disabled
+      
+      // Animate wheels
+      if (this.userData && this.userData.wheels) {
+        this.userData.wheels.forEach(wheel => {
+          wheel.rotation.x += speed;
+        });
+      }
+    };
+  }
+  
+  /**
    * Apply a specific color to a vehicle model
    * @param {THREE.Object3D} model - The vehicle model
    * @param {number} color - The color as a hex value
@@ -412,46 +458,6 @@ export default class VehicleLoader {
         }
       }
     });
-    
-    return model;
-  }
-  
-  /**
-   * Get an animated wheels version of the vehicle
-   * @param {THREE.Object3D} model - The vehicle model
-   */
-  prepareForAnimation(model) {
-    // Find and store references to wheels for animation
-    const wheels = [];
-    
-    model.traverse((child) => {
-      if (child.isMesh) {
-        // Identify wheels by name or user data
-        if (child.userData.isWheel || 
-            child.name.toLowerCase().includes('wheel') || 
-            child.name.toLowerCase().includes('tire')) {
-          wheels.push(child);
-        }
-      }
-    });
-    
-    // Add animation method to the model
-    model.animateWheels = (speed) => {
-      wheels.forEach(wheel => {
-        // Analyze wheel position/name to determine rotation direction
-        const name = wheel.name.toLowerCase();
-        let rotationDirection = 1;
-        
-        // Wheels on left side rotate in opposite direction
-        if (name.includes('left') || 
-            (wheel.position.z > 0 && wheel.parent === model)) {
-          rotationDirection = -1;
-        }
-        
-        // Apply rotation
-        wheel.rotation.z += speed * 0.1 * rotationDirection;
-      });
-    };
     
     return model;
   }

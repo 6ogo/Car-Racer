@@ -297,23 +297,24 @@ export default {
 
             // Create the scene
             this.scene = new THREE.Scene();
-            this.scene.background = new THREE.Color(0x333333);
+            this.scene.background = new THREE.Color(0xf7d9aa); // Lighter background color
 
             // Add lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             this.scene.add(ambientLight);
 
             const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
             directionalLight.position.set(1, 1, 1);
+            directionalLight.castShadow = true;
             this.scene.add(directionalLight);
 
             const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
             backLight.position.set(-1, 0.5, -1);
             this.scene.add(backLight);
 
-            // Create camera
-            this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-            this.camera.position.set(0, 2, 15);
+            // Create camera - position further away to see full car
+            this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
+            this.camera.position.set(0, 3, 20); // Moved further back
             this.camera.lookAt(0, 0, 0);
 
             // Create renderer
@@ -323,16 +324,20 @@ export default {
             this.renderer.shadowMap.enabled = true;
             container.appendChild(this.renderer.domElement);
 
-            // Add orbit controls
+            // Add orbit controls with better defaults
             this.controls = new OrbitControls(this.camera, this.renderer.domElement);
             this.controls.enableDamping = true;
             this.controls.dampingFactor = 0.05;
-            this.controls.minDistance = 2;
-            this.controls.maxDistance = 5;
+            this.controls.minDistance = 7;  // Don't allow zooming in too close
+            this.controls.maxDistance = 30; // Allow zooming out further
             this.controls.maxPolarAngle = Math.PI / 2;
+            
+            // Start with a better default view
+            this.controls.target.set(0, 0, 0);
+            this.controls.update();
 
             // Create a ground plane
-            const groundGeometry = new THREE.PlaneGeometry(10, 10);
+            const groundGeometry = new THREE.PlaneGeometry(50, 50);
             const groundMaterial = new THREE.MeshStandardMaterial({
                 color: 0x999999,
                 roughness: 0.8,
@@ -341,10 +346,12 @@ export default {
             const ground = new THREE.Mesh(groundGeometry, groundMaterial);
             ground.rotation.x = -Math.PI / 2;
             ground.receiveShadow = true;
+            ground.position.y = -2; // Lower the ground a bit
             this.scene.add(ground);
 
             // Add a grid helper
-            const gridHelper = new THREE.GridHelper(10, 10, 0x000000, 0x444444);
+            const gridHelper = new THREE.GridHelper(50, 50, 0x000000, 0x444444);
+            gridHelper.position.y = -1.99; // Just above ground
             this.scene.add(gridHelper);
 
             // Start animation loop
@@ -371,16 +378,34 @@ export default {
                     const colorHex = parseInt(this.carColors[this.selectedColorIndex].hex.replace('#', '0x'));
                     this.vehicleLoader.setVehicleColor(model, colorHex);
 
-                    // Prepare for animation
-                    this.vehicleLoader.prepareForAnimation(model);
+                    // Prepare for animation - don't animate wheels in preview
+                    this.vehicleLoader.prepareForAnimation(model, false);
+                    
+                    // Center model on ground
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3());
+                    const center = box.getCenter(new THREE.Vector3());
+                    
+                    // Reset position to center horizontally but sit on ground
+                    model.position.x = -center.x;
+                    model.position.z = -center.z;
+                    model.position.y = -box.min.y; // Place bottom of car on ground
+                    
+                    // Make sure wheels are properly attached
+                    model.traverse(child => {
+                        if (child.name && child.name.toLowerCase().includes('wheel')) {
+                            // Ensure wheels don't rotate on their own in preview
+                            if (child.userData) {
+                                child.userData.isWheel = false;
+                            }
+                        }
+                    });
 
                     // Add to scene
                     this.scene.add(model);
 
                     // Adjust camera to focus on model
-                    const box = new THREE.Box3().setFromObject(model);
-                    const center = box.getCenter(new THREE.Vector3());
-                    this.controls.target.copy(center);
+                    this.controls.target.set(0, size.y/3, 0); // Focus on car body
                     this.controls.update();
                     
                     console.log(`Model ${modelFile} loaded successfully`);

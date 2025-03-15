@@ -1236,21 +1236,33 @@ export default {
             this.targetLaneZ = 0;
             
             // Ensure the car is properly positioned and visible
-            if (this.ui && this.ui.car) {
+            if (this.ui && this.ui.car && typeof this.ui.car.position.set === 'function') {
                 this.ui.car.position.set(0, 35, 0);
                 this.ui.car.rotation.set(0, 0, 0);
                 this.ui.car.visible = true;
                 console.log("Car position reset and set to visible");
-            } else if (this.carModel) {
+            } else if (this.carModel && typeof this.carModel.position.set === 'function') {
                 console.log("Setting UI.car from carModel");
+                if (!this.ui) this.ui = {};
                 this.ui.car = this.carModel;
                 this.ui.car.position.set(0, 35, 0);
                 this.ui.car.rotation.set(0, 0, 0);
                 this.ui.car.visible = true;
             } else {
                 console.warn("No car model available, attempting to load default");
-                // Try to load a default car model if none exists
-                this.loadCarModel('sedan', '#f25346');
+                // Initialize UI if it doesn't exist
+                if (!this.ui) this.ui = {};
+                if (!this.ui.car) {
+                    // Use car mesh from Car class as fallback
+                    if (this.car && this.car.mesh) {
+                        this.ui.car = this.car.mesh;
+                        this.ui.car.position.set(0, 35, 0);
+                        this.scene.add(this.ui.car);
+                    } else {
+                        // Try to load a default car model if nothing else exists
+                        this.loadCarModel('sedan', '#f25346');
+                    }
+                }
             }
             
             this.difficultyLevel = 1;
@@ -1266,35 +1278,46 @@ export default {
             // Set initial environment
             this.setEnvironment('Day');
             
-            // Clear all previous obstacles and coins
-            this.obstacles.forEach(obstacle => {
-                if (obstacle.mesh && this.scene) {
-                    this.scene.remove(obstacle.mesh);
-                }
-            });
-            this.obstacles = [];
+            // Create arrays if they don't exist
+            if (!this.obstacles) this.obstacles = [];
+            if (!this.collectibles) this.collectibles = [];
             
-            this.collectibles.forEach(collectible => {
-                if (collectible.mesh && this.scene) {
-                    this.scene.remove(collectible.mesh);
-                }
-            });
-            this.collectibles = [];
+            // Clear all previous obstacles
+            if (Array.isArray(this.obstacles)) {
+                this.obstacles.forEach(obstacle => {
+                    if (obstacle && obstacle.mesh && this.scene) {
+                        this.scene.remove(obstacle.mesh);
+                    }
+                });
+                this.obstacles = [];
+            }
             
-            // Reset timestamps
-            this.lastObstacleTime = Date.now();
-            this.lastCoinTime = Date.now();
-            this.lastPowerUpTime = Date.now();
+            // Clear all previous collectibles
+            if (Array.isArray(this.collectibles)) {
+                this.collectibles.forEach(collectible => {
+                    if (collectible && collectible.mesh && this.scene) {
+                        this.scene.remove(collectible.mesh);
+                    }
+                });
+                this.collectibles = [];
+            }
             
             // Make sure camera is in position
             if (this.ui && this.ui.camera) {
-                this.ui.camera.position.x = -350;
-                this.ui.camera.position.y = 200;
-                this.ui.camera.position.z = 0;
+                if (typeof this.ui.camera.position.set === 'function') {
+                    this.ui.camera.position.set(-350, 200, 0);
+                } else if (this.ui.camera.position) {
+                    this.ui.camera.position.x = -350;
+                    this.ui.camera.position.y = 200;
+                    this.ui.camera.position.z = 0;
+                }
             }
             
             // Set current timestamp
             this.lastUpdateTime = Date.now();
+            this.lastObstacleTime = Date.now();
+            this.lastCoinTime = Date.now();
+            this.lastPowerUpTime = Date.now();
             
             console.log("Game started successfully");
         },

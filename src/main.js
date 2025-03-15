@@ -3,8 +3,9 @@ import Vue from 'vue'
 import App from './App'
 import router from './router'
 
-import VueThreejs from 'vue-threejs'
-Vue.use(VueThreejs)
+// Import our custom Three.js components
+import ThreeComponents from './components/three'
+Vue.use(ThreeComponents)
 
 Vue.config.productionTip = false
 

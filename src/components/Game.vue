@@ -81,22 +81,23 @@
             @activate-boost="onActivateBoost" @toggle-pause="pauseGame">
         </mobile-controls>
 
-        <renderer :obj="renderer" :size="renderSize">
-            <scene :obj="scene">
-                <camera :obj="camera" :position="ui.camera.position"></camera>
+        <three-renderer :obj="renderer" :size="renderSize">
+            <three-scene :obj="scene">
+                <three-camera :obj="camera" :position="ui.camera.position"></three-camera>
 
-                <light :obj="lights[0]"></light>
-                <light :obj="lights[1]"></light>
-                <light :obj="lights[2]" :position="ui.light2.position"></light>
+                <three-light :obj="lights[0]"></three-light>
+                <three-light :obj="lights[1]"></three-light>
+                <three-light :obj="lights[2]" :position="ui.light2.position"></three-light>
 
-                <object3d :obj="highway.mesh" :position="ui.highway.position" :rotation="ui.highway.rotation">
-                </object3d>
-                <object3d :obj="sky" :position="ui.sky.position" :rotation="ui.sky.rotation"></object3d>
-                <object3d :obj="car.mesh" :scale="ui.car.scale" :position="ui.car.position" :rotation="ui.car.rotation">
-                </object3d>
-                <animation :fn="loop"></animation>
-            </scene>
-        </renderer>
+                <three-object3d :obj="highway.mesh" :position="ui.highway.position" :rotation="ui.highway.rotation">
+                </three-object3d>
+                <three-object3d :obj="sky" :position="ui.sky.position" :rotation="ui.sky.rotation"></three-object3d>
+                <three-object3d :obj="car.mesh" :scale="ui.car.scale" :position="ui.car.position"
+                    :rotation="ui.car.rotation">
+                </three-object3d>
+                <three-animation :fn="loop"></three-animation>
+            </three-scene>
+        </three-renderer>
     </div>
 </template>
 

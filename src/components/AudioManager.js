@@ -8,46 +8,77 @@ export default class AudioManager {
   
     init() {
       if (this.initialized) return;
-  
-      // Create audio elements
-      this.createSound('coin', 'coin.mp3');
-      this.createSound('crash', 'crash.mp3');
-      this.createSound('boost', 'boost.mp3');
-      this.createSound('engine', 'engine.mp3', true); // Loop the engine sound
-      
-      this.initialized = true;
+
+      try {
+        // Create audio elements
+        this.createSound('coin', 'coin.mp3');
+        this.createSound('crash', 'crash.mp3');
+        this.createSound('boost', 'boost.mp3');
+        this.createSound('engine', 'engine.mp3', true); // Loop the engine sound
+        
+        this.initialized = true;
+        console.log("Audio system initialized successfully");
+      } catch (error) {
+        console.error("Audio initialization error:", error);
+      }
     }
   
     createSound(name, src, loop = false) {
-      const audio = new Audio();
-      audio.src = `${process.env.BASE_URL}assets/sounds/${src}`;
-      audio.loop = loop;
-      
-      this.sounds[name] = {
-        audio: audio,
-        playing: false
-      };
+      try {
+        const audio = new Audio();
+        audio.src = `${process.env.BASE_URL}assets/sounds/${src}`;
+        audio.loop = loop;
+        
+        this.sounds[name] = {
+          audio: audio,
+          playing: false
+        };
+        console.log(`Sound created: ${name} (${src})`);
+      } catch (error) {
+        console.error(`Error creating sound ${name}:`, error);
+      }
     }
   
-    play(name) {
-      if (!this.initialized || this.muted) return;
+    playSound(name) {
+      if (!this.initialized) {
+        console.log("Initializing audio before playing sound");
+        this.init();
+      }
+      
+      if (this.muted) {
+        console.log(`Sound ${name} not played (muted)`);
+        return;
+      }
       
       const sound = this.sounds[name];
-      if (!sound) return;
+      if (!sound) {
+        console.error(`Sound ${name} not found`);
+        return;
+      }
       
-      // If it's already playing, reset it
-      if (sound.playing) {
-        sound.audio.currentTime = 0;
-      } else {
-        sound.audio.play();
-        sound.playing = true;
-        
-        // Reset playing state when sound ends (for non-looping sounds)
-        if (!sound.audio.loop) {
-          sound.audio.onended = () => {
-            sound.playing = false;
-          };
+      try {
+        // If it's already playing, reset it
+        if (sound.playing) {
+          sound.audio.currentTime = 0;
+        } else {
+          sound.audio.play()
+            .then(() => {
+              console.log(`Sound ${name} playing`);
+              sound.playing = true;
+            })
+            .catch(err => {
+              console.error(`Error playing sound ${name}:`, err);
+            });
+          
+          // Reset playing state when sound ends (for non-looping sounds)
+          if (!sound.audio.loop) {
+            sound.audio.onended = () => {
+              sound.playing = false;
+            };
+          }
         }
+      } catch (error) {
+        console.error(`Error playing sound ${name}:`, error);
       }
     }
   

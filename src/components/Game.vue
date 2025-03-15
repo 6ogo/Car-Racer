@@ -339,6 +339,25 @@ export default {
     mounted() {
         console.log("Game component mounted");
 
+        // Initialize audio manager
+        this.audioManager = new AudioManager();
+        this.audioManager.init();
+        
+        // Test sound playback
+        setTimeout(() => {
+            if (this.audioManager) {
+                console.log("Testing audio system");
+                this.audioManager.playSound('coin');
+            }
+        }, 1000);
+        
+        // Create the Three.js scene
+        this.init();
+        this.createRenderer();
+        this.createScene();
+        this.createCamera();
+        this.createLights();
+
         // Initialize core components
         // Initialize Three.js objects
         this.scene = new THREE.Scene();
@@ -356,10 +375,6 @@ export default {
         this.car = new Car(); // From Car.js
         this.scene.add(this.car.mesh);
         this.highway = new Highway();
-
-        // Initialize audio manager
-        this.audioManager = new AudioManager();
-        this.audioManager.init();
 
         // Initialize environment manager
         this.environmentManager = new EnvironmentManager(this.scene);
@@ -697,32 +712,44 @@ export default {
             if (!this.roadGenerator) {
                 console.log("Creating new road generator");
                 this.roadGenerator = new RoadGenerator(this.scene);
+                
+                // Ensure the road is added to the scene
+                if (this.scene && this.roadGenerator.roadSegments.length === 0) {
+                    console.log("Adding initial road segments");
+                    this.roadGenerator.initRoad();
+                    
+                    // Log road segments to debug
+                    console.log(`Road initialized with ${this.roadGenerator.roadSegments.length} segments`);
+                    
+                    // Force road to be visible
+                    this.roadGenerator.roadSegments.forEach(segment => {
+                        if (segment.mesh) {
+                            segment.mesh.position.y = 0; // Ensure road is at ground level
+                            segment.mesh.visible = true;
+                        }
+                    });
+                }
             } else {
                 // Check if reset method exists before trying to call it
+                console.log("Resetting existing road generator");
                 if (typeof this.roadGenerator.reset === 'function') {
-                    console.log("Resetting existing road generator");
                     this.roadGenerator.reset();
                 } else {
-                    console.log("Reset method not available, creating new road generator");
-                    // Remove old road generator and create a new one
-                    if (this.roadGenerator.roadSegments) {
-                        this.roadGenerator.roadSegments.forEach(segment => {
-                            if (segment.mesh && this.scene) {
-                                this.scene.remove(segment.mesh);
-                            }
-                        });
-                    }
+                    console.warn("No reset method found on road generator");
+                    // Create a new one to ensure clean state
+                    this.scene.remove(this.roadGenerator.mesh);
                     this.roadGenerator = new RoadGenerator(this.scene);
+                    this.roadGenerator.initRoad();
                 }
             }
-
-            // Make sure the initial road segments are generated
-            if (!this.roadGenerator.roadSegments || this.roadGenerator.roadSegments.length === 0) {
+            
+            // Check if road segments were actually created
+            if (this.roadGenerator && this.roadGenerator.roadSegments.length === 0) {
                 console.log("No road segments found, initializing road");
                 this.roadGenerator.initRoad();
             }
-
-            console.log(`Road initialized with ${this.roadGenerator.roadSegments.length} segments`);
+            
+            console.log(`Road initialized with ${this.roadGenerator ? this.roadGenerator.roadSegments.length : 0} segments`);
         },
 
         startGame() {
@@ -745,9 +772,16 @@ export default {
             // Position camera properly for game view
             if (this.camera) {
                 console.log("Setting camera position for gameplay");
-                // Position behind and above the car
-                this.camera.position.set(0, 200, -400);
-                this.camera.lookAt(new THREE.Vector3(100, 0, 0));
+                // Position behind and above the car with a better view
+                this.camera.position.set(-200, 200, 0);
+                this.camera.lookAt(new THREE.Vector3(200, 0, 0));
+
+                // Update stored camera position
+                this.cameraPosition = { 
+                    x: -200, 
+                    y: 200, 
+                    z: 0 
+                };
 
                 if (this.ui && !this.ui.camera) {
                     this.ui.camera = this.camera;
@@ -792,6 +826,13 @@ export default {
                 });
             }
 
+            // Create a basic highway if needed
+            if (!this.highway || !this.highway.mesh) {
+                this.highway = new Highway();
+                this.scene.add(this.highway.mesh);
+                console.log("Added highway to scene");
+            }
+
             // Perform a debug check of scene objects
             if (this.scene) {
                 console.log("Scene contents:", this.scene.children.length, "objects");
@@ -815,6 +856,13 @@ export default {
             this.lastCoinTime = Date.now();
             this.lastPowerUpTime = Date.now();
 
+            // Start the engine sound
+            if (this.audioManager) {
+                this.audioManager.playSound('engine');
+                // Play a coin sound to test audio
+                setTimeout(() => this.audioManager.playSound('coin'), 500);
+            }
+
             // Force a render to ensure everything is visible
             if (this.renderer && this.scene && this.camera) {
                 console.log("Forcing initial render");
@@ -823,7 +871,6 @@ export default {
 
             console.log("Game started successfully");
         },
-
         animate() {
             requestAnimationFrame(this.animate);
             // Update camera to follow car
@@ -904,7 +951,12 @@ export default {
         },
         updateCamera() {
             this.camera.position.set(this.cameraPosition.x, this.cameraPosition.y, this.cameraPosition.z);
-            this.camera.lookAt(0, 0, 0); // Adjust to car’s actual position if different
+            // Ensure the camera is looking at the car
+            if (this.ui && this.ui.car) {
+                this.camera.lookAt(this.ui.car.position);
+            } else {
+                this.camera.lookAt(0, 0, 0);
+            }
         },
         handleMouseMove(e) {
             // Convert mouse position to normalized coordinates (-1 to 1)

@@ -46,52 +46,64 @@ export default class VehicleLoader {
     
     console.log(`Loading model from: ${modelPath}`);
     
-    this.loader.load(
-      modelPath,
-      (fbx) => {
-        try {
-          console.log(`Successfully loaded model: ${modelName}`);
-          
-          // Scale down the model
-          fbx.scale.set(this.defaultScale, this.defaultScale, this.defaultScale);
-          
-          // Center the model
-          const box = new THREE.Box3().setFromObject(fbx);
-          const center = box.getCenter(new THREE.Vector3());
-          fbx.position.sub(center);
-          
-          // Adjust to ground level
-          const size = box.getSize(new THREE.Vector3());
-          fbx.position.y = size.y / 2;
-          
-          // Apply materials (can be customized later)
-          this.applyDefaultMaterials(fbx, modelName);
-          
-          // Make a clean clone for caching
-          this.cache[modelName] = fbx.clone();
-          
-          if (onLoad) onLoad(fbx);
-        } catch (error) {
-          console.error(`Error processing model ${modelName}:`, error);
-          if (onError) onError(error);
+    try {
+      this.loader.load(
+        modelPath,
+        (fbx) => {
+          try {
+            console.log(`Successfully loaded model: ${modelName}`);
+            
+            // Scale down the model
+            fbx.scale.set(this.defaultScale, this.defaultScale, this.defaultScale);
+            
+            // Center the model
+            const box = new THREE.Box3().setFromObject(fbx);
+            const center = box.getCenter(new THREE.Vector3());
+            fbx.position.sub(center);
+            
+            // Adjust to ground level
+            const size = box.getSize(new THREE.Vector3());
+            fbx.position.y = size.y / 2;
+            
+            // Apply materials (can be customized later)
+            this.applyDefaultMaterials(fbx, modelName);
+            
+            // Make a clean clone for caching
+            this.cache[modelName] = fbx.clone();
+            
+            if (onLoad) onLoad(fbx);
+          } catch (error) {
+            console.error(`Error processing model ${modelName}:`, error);
+            this.handleLoadError(modelName, onLoad, onError, error);
+          }
+        },
+        (xhr) => {
+          if (onProgress) onProgress(xhr);
+        },
+        (error) => {
+          console.error(`Error loading model ${modelName}:`, error);
+          this.handleLoadError(modelName, onLoad, onError, error);
         }
-      },
-      (xhr) => {
-        if (onProgress) onProgress(xhr);
-      },
-      (error) => {
-        console.error(`Error loading model ${modelName}:`, error);
-        
-        // Create a fallback geometric model
-        const fallbackModel = this.createFallbackModel(modelName);
-        
-        // Cache the fallback model
-        this.cache[modelName] = fallbackModel.clone();
-        
-        if (onLoad) onLoad(fallbackModel);
-        if (onError) onError(error);
-      }
-    );
+      );
+    } catch (error) {
+      console.error(`Exception during model loading setup for ${modelName}:`, error);
+      this.handleLoadError(modelName, onLoad, onError, error);
+    }
+  }
+  
+  /**
+   * Handle loading errors by creating a fallback model
+   */
+  handleLoadError(modelName, onLoad, onError, error) {
+    console.log(`Creating fallback model for ${modelName}`);
+    // Create a fallback geometric model
+    const fallbackModel = this.createFallbackModel(modelName);
+    
+    // Cache the fallback model
+    this.cache[modelName] = fallbackModel.clone();
+    
+    if (onLoad) onLoad(fallbackModel);
+    if (onError) onError(error);
   }
   
   /**

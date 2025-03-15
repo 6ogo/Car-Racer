@@ -34,27 +34,21 @@ export default class Car {
   
   // Standard balanced car (original design)
   createBalanced() {
-    // Car Body
-    const geomBody = new THREE.BoxGeometry(80, 30, 50, 1, 1, 1)
+    // Car Body - Updated for BufferGeometry
+    const geomBody = new THREE.BoxGeometry(80, 30, 50)
     const matBody = new THREE.MeshPhongMaterial({color: Colors.blue, flatShading: true})
 
-    // Modify the vertices to create a sporty car shape
-    geomBody.vertices[4].y -= 10
-    geomBody.vertices[4].z += 20
-    geomBody.vertices[5].y -= 10
-    geomBody.vertices[5].z -= 20
-    geomBody.vertices[6].y += 10
-    geomBody.vertices[6].z += 20
-    geomBody.vertices[7].y += 10
-    geomBody.vertices[7].z -= 20
-
+    // NOTE: We can't modify vertices directly in BufferGeometry
+    // Instead, we'll create a more complex shape or use other techniques for a sporty look
+    
     const body = new THREE.Mesh(geomBody, matBody)
     body.castShadow = true
     body.receiveShadow = true
+    body.position.set(0, 0, 0)
     this.mesh.add(body)
 
     // Car Roof
-    const geomRoof = new THREE.BoxGeometry(40, 25, 50, 1, 1, 1)
+    const geomRoof = new THREE.BoxGeometry(40, 25, 50)
     const matRoof = new THREE.MeshPhongMaterial({color: Colors.blue, flatShading: true})
     
     const roof = new THREE.Mesh(geomRoof, matRoof)
@@ -65,7 +59,7 @@ export default class Car {
     this.mesh.add(roof)
 
     // Windshield
-    const geomWindshield = new THREE.BoxGeometry(3, 20, 40, 1, 1, 1)
+    const geomWindshield = new THREE.BoxGeometry(3, 20, 40)
     const matWindshield = new THREE.MeshPhongMaterial({color: Colors.blue, transparent: true, opacity: 0.3, flatShading: true})
     const windshield = new THREE.Mesh(geomWindshield, matWindshield)
     windshield.position.set(10, 20, 0)
@@ -78,29 +72,35 @@ export default class Car {
     this.createWheel(-25, -15, -25)
     this.createWheel(25, -15, 25)
     this.createWheel(25, -15, -25)
+    
+    // Add some aerodynamic shape using additional meshes instead of vertex manipulation
+    this.addAerodynamicFeatures(body)
+  }
+  
+  // Add aerodynamic features to simulate the vertex manipulation we previously had
+  addAerodynamicFeatures(body) {
+    // Front slope
+    const frontSlopeGeom = new THREE.BoxGeometry(20, 10, 50)
+    const frontSlopeMat = new THREE.MeshPhongMaterial({color: Colors.blue, flatShading: true})
+    const frontSlope = new THREE.Mesh(frontSlopeGeom, frontSlopeMat)
+    frontSlope.position.set(30, -5, 0)
+    frontSlope.rotation.z = Math.PI * 0.1
+    body.add(frontSlope)
+    
+    // Rear slope
+    const rearSlopeGeom = new THREE.BoxGeometry(20, 5, 50)
+    const rearSlopeMat = new THREE.MeshPhongMaterial({color: Colors.blue, flatShading: true})
+    const rearSlope = new THREE.Mesh(rearSlopeGeom, rearSlopeMat)
+    rearSlope.position.set(-30, 10, 0)
+    rearSlope.rotation.z = -Math.PI * 0.1
+    body.add(rearSlope)
   }
   
   // Sleek, faster car
   createSpeedster() {
     // Car Body - more streamlined
-    const geomBody = new THREE.BoxGeometry(90, 25, 45, 1, 1, 1)
+    const geomBody = new THREE.BoxGeometry(90, 25, 45)
     const matBody = new THREE.MeshPhongMaterial({color: Colors.red, flatShading: true})
-
-    // Modify the vertices to create an aerodynamic shape
-    geomBody.vertices[4].y -= 8
-    geomBody.vertices[4].z += 15
-    geomBody.vertices[5].y -= 8
-    geomBody.vertices[5].z -= 15
-    geomBody.vertices[6].y += 8
-    geomBody.vertices[6].z += 15
-    geomBody.vertices[7].y += 8
-    geomBody.vertices[7].z -= 15
-    
-    // Front vertices - more pointy
-    geomBody.vertices[0].y -= 5
-    geomBody.vertices[1].y -= 5
-    geomBody.vertices[2].y += 5
-    geomBody.vertices[3].y += 5
 
     const body = new THREE.Mesh(geomBody, matBody)
     body.castShadow = true
@@ -108,10 +108,9 @@ export default class Car {
     this.mesh.add(body)
 
     // Sleek Low Roof
-    const geomRoof = new THREE.BoxGeometry(50, 20, 45, 1, 1, 1)
+    const geomRoof = new THREE.BoxGeometry(50, 20, 45)
     const matRoof = new THREE.MeshPhongMaterial({color: Colors.red, flatShading: true})
     
-    // Make roof more aerodynamic
     const roof = new THREE.Mesh(geomRoof, matRoof)
     roof.position.x = -15
     roof.position.y = 20
@@ -120,7 +119,7 @@ export default class Car {
     this.mesh.add(roof)
 
     // Wider Windshield
-    const geomWindshield = new THREE.BoxGeometry(3, 18, 35, 1, 1, 1)
+    const geomWindshield = new THREE.BoxGeometry(3, 18, 35)
     const matWindshield = new THREE.MeshPhongMaterial({color: Colors.blue, transparent: true, opacity: 0.3, flatShading: true})
     const windshield = new THREE.Mesh(geomWindshield, matWindshield)
     windshield.position.set(10, 18, 0)
@@ -129,7 +128,7 @@ export default class Car {
     this.mesh.add(windshield)
     
     // Spoiler
-    const geomSpoiler = new THREE.BoxGeometry(15, 5, 50, 1, 1, 1)
+    const geomSpoiler = new THREE.BoxGeometry(15, 5, 50)
     const matSpoiler = new THREE.MeshPhongMaterial({color: Colors.red, flatShading: true})
     const spoiler = new THREE.Mesh(geomSpoiler, matSpoiler)
     spoiler.position.set(-40, 30, 0)
@@ -138,7 +137,7 @@ export default class Car {
     this.mesh.add(spoiler)
     
     // Support for spoiler
-    const geomSupport1 = new THREE.BoxGeometry(5, 15, 2, 1, 1, 1)
+    const geomSupport1 = new THREE.BoxGeometry(5, 15, 2)
     const matSupport = new THREE.MeshPhongMaterial({color: Colors.red, flatShading: true})
     const support1 = new THREE.Mesh(geomSupport1, matSupport)
     support1.position.set(-40, 20, 20)
@@ -153,12 +152,39 @@ export default class Car {
     this.createWheel(-25, -12, -25, 12)
     this.createWheel(25, -12, 25, 13)
     this.createWheel(25, -12, -25, 13)
+    
+    // Add aerodynamic shape
+    this.addSpeedsterAerodynamics(body)
+  }
+  
+  addSpeedsterAerodynamics(body) {
+    // Front slope for aerodynamic look
+    const frontGeom = new THREE.BoxGeometry(20, 15, 45)
+    const frontMat = new THREE.MeshPhongMaterial({color: Colors.red, flatShading: true})
+    const front = new THREE.Mesh(frontGeom, frontMat)
+    front.position.set(40, -5, 0)
+    front.rotation.z = Math.PI * 0.15
+    body.add(front)
+    
+    // Side curves
+    const sideGeom = new THREE.BoxGeometry(70, 10, 5)
+    const sideMat = new THREE.MeshPhongMaterial({color: Colors.red, flatShading: true})
+    
+    const leftSide = new THREE.Mesh(sideGeom, sideMat)
+    leftSide.position.set(0, -5, 25)
+    leftSide.rotation.x = Math.PI * 0.1
+    body.add(leftSide)
+    
+    const rightSide = new THREE.Mesh(sideGeom, sideMat)
+    rightSide.position.set(0, -5, -25)
+    rightSide.rotation.x = -Math.PI * 0.1
+    body.add(rightSide)
   }
   
   // Off-road monster truck
   createMonster() {
     // Taller, boxier body
-    const geomBody = new THREE.BoxGeometry(75, 35, 55, 1, 1, 1)
+    const geomBody = new THREE.BoxGeometry(75, 35, 55)
     const matBody = new THREE.MeshPhongMaterial({color: Colors.green, flatShading: true})
 
     const body = new THREE.Mesh(geomBody, matBody)
@@ -168,7 +194,7 @@ export default class Car {
     this.mesh.add(body)
 
     // Smaller Cabin/Roof
-    const geomRoof = new THREE.BoxGeometry(35, 25, 45, 1, 1, 1)
+    const geomRoof = new THREE.BoxGeometry(35, 25, 45)
     const matRoof = new THREE.MeshPhongMaterial({color: Colors.green, flatShading: true})
     
     const roof = new THREE.Mesh(geomRoof, matRoof)
@@ -179,7 +205,7 @@ export default class Car {
     this.mesh.add(roof)
 
     // Wider Windshield
-    const geomWindshield = new THREE.BoxGeometry(3, 20, 35, 1, 1, 1)
+    const geomWindshield = new THREE.BoxGeometry(3, 20, 35)
     const matWindshield = new THREE.MeshPhongMaterial({color: Colors.blue, transparent: true, opacity: 0.3, flatShading: true})
     const windshield = new THREE.Mesh(geomWindshield, matWindshield)
     windshield.position.set(10, 40, 0)
@@ -188,7 +214,7 @@ export default class Car {
     this.mesh.add(windshield)
     
     // Bull bar
-    const geomBullBar = new THREE.BoxGeometry(5, 25, 65, 1, 1, 1)
+    const geomBullBar = new THREE.BoxGeometry(5, 25, 65)
     const matBullBar = new THREE.MeshPhongMaterial({color: Colors.brownDark, flatShading: true})
     const bullBar = new THREE.Mesh(geomBullBar, matBullBar)
     bullBar.position.set(40, 20, 0)
@@ -214,7 +240,7 @@ export default class Car {
     this.createWheel(20, 0, -30, 18)
     
     // Suspension parts
-    const suspGeom = new THREE.BoxGeometry(5, 20, 5, 1, 1, 1)
+    const suspGeom = new THREE.BoxGeometry(5, 20, 5)
     const suspMat = new THREE.MeshPhongMaterial({color: Colors.brownDark, flatShading: true})
     
     const positions = [

@@ -29,11 +29,16 @@ export default class Driver {
     // Hair Top
     this.hairsTop = new THREE.Object3D()
     
+    // Create individual hair blocks
     for (let i = 0; i < 9; i++) {
       const hair = new THREE.Mesh(hairGeom, hairMat)
       const col = i % 3
       const row = Math.floor(i / 3)
       hair.position.set(-4 + row * 4, 11, -4 + col * 4)
+      
+      // Store the original Y position for animation
+      hair.userData.initialY = hair.position.y
+      
       this.hairsTop.add(hair)
     }
     
@@ -75,7 +80,19 @@ export default class Driver {
 
     for (let i = 0; i < l; i++) {
       const hair = hairs[i]
-      hair.scale.y = 0.75 + Math.cos(this.angleHairs + i / 3) * 0.25
+      // Use userData to store the original Y position if not already set
+      if (hair.userData.initialY === undefined) {
+        hair.userData.initialY = hair.position.y;
+      }
+      
+      // Calculate new scale based on angle
+      const scaleY = 0.75 + Math.cos(this.angleHairs + i / 3) * 0.25
+      
+      // Apply the scale to the hair's Y position
+      hair.position.y = hair.userData.initialY * scaleY
+      
+      // Alternative: if you want to use scale directly
+      // hair.scale.y = scaleY
     }
     
     this.angleHairs += 0.16

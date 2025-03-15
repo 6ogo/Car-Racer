@@ -307,6 +307,10 @@ export default {
     },
 
     created() {
+        // Initialize with safe defaults first
+        this.car = { mesh: new THREE.Object3D(), driver: { updateHairs: () => { } } };
+        this.highway = { mesh: new THREE.Object3D() };
+
         this.init();
         this.animate();
         this.renderer = this.createRenderer();
@@ -359,6 +363,10 @@ export default {
 
         // Set current timestamp
         this.lastUpdateTime = Date.now();
+
+        // Initialize the real objects after scene is set up
+        this.initializeGameObjects();
+
     },
     // Add error handlers to component lifecycle hooks
     errorCaptured(err, vm, info) {
@@ -370,16 +378,20 @@ export default {
 
 
 
+    // Fix the focus issue
     mounted() {
-        // Focus the div for keyboard controls
-        this.$el.focus();
+        // Check if the element can be focused first
+        if (this.$el && typeof this.$el.focus === 'function') {
+            this.$el.focus();
+        }
 
         // Add resize listener
         window.addEventListener('resize', this.handleResize);
 
         // Preload vehicle models
         this.preloadVehicles();
-        // Add error logging
+
+        // Debugging logs
         console.log('Game component mounted');
         console.log('THREE.js version:', THREE.REVISION);
 
@@ -387,12 +399,8 @@ export default {
         if (!this.scene) console.error('Scene is undefined');
         if (!this.camera) console.error('Camera is undefined');
         if (!this.renderer) console.error('Renderer is undefined');
-
-        // Dispatch a test event
-        this.$nextTick(() => {
-            console.log('App fully rendered');
-        });
     },
+
 
     beforeDestroy() {
         window.removeEventListener('resize', this.handleResize);
@@ -415,6 +423,25 @@ export default {
             // Position the camera
             this.camera.position.z = 200;
             this.camera.position.y = 100;
+        },
+        initializeGameObjects() {
+            try {
+                // Initialize objects once scene is ready
+                if (this.scene) {
+                    this.sky = this.createSky();
+                    this.car = new Car('balanced');
+                    this.highway = new Highway();
+                }
+            } catch (error) {
+                console.error('Error initializing game objects:', error);
+                // Fallback to empty objects if initialization fails
+                if (!this.car || !this.car.mesh) {
+                    this.car = { mesh: new THREE.Object3D(), driver: { updateHairs: () => { } } };
+                }
+                if (!this.highway || !this.highway.mesh) {
+                    this.highway = { mesh: new THREE.Object3D() };
+                }
+            }
         },
 
         animate() {
@@ -496,13 +523,15 @@ export default {
             // Skip if game is over or paused
             if (this.gameOver || this.gamePaused || !this.gameStarted) return;
 
+            // Guard against null car or driver
+            if (this.car && this.car.driver && typeof this.car.driver.updateHairs === 'function') {
+                this.car.driver.updateHairs();
+            }
+
             // Calculate delta time for time-based updates
             const now = Date.now();
             const deltaTime = (now - this.lastUpdateTime) / 1000; // Convert to seconds
             this.lastUpdateTime = now;
-
-            // Update the driver's hair animation
-            this.car.driver.updateHairs();
 
             // Update sky rotation
             this.ui.sky.rotation.z += 0.001;

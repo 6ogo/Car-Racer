@@ -548,4 +548,4 @@ export default class Highway {
       value: totalValue > 0 ? totalValue : collectedCoins.length
     };
   }
-} 
+}

@@ -109,7 +109,7 @@ import PowerUp from './PowerUp';
 import EnvironmentManager from './EnvironmentManager';
 import EffectsManager from './EffectsManager';
 import CarSelection from './CarSelection';
-import MobileControls from './MobileControls';
+import MobileControls from './EnhancedMobileControls';
 import RoadGenerator from './RoadGenerator';
 import PoliceChase from './PoliceChase';
 import VehicleLoader from './VehicleLoader';
@@ -184,6 +184,10 @@ export default {
                 ArrowRight: false,
                 ArrowUp: false,
                 ArrowDown: false,
+                KeyA: false,
+                KeyD: false,
+                KeyW: false,
+                KeyS: false,
                 Space: false
             },
             carLane: 1, // 0, 1, 2 for left, center, right
@@ -548,7 +552,7 @@ export default {
             }
 
             // Convert hex color string to integer
-            const colorInt = parseInt(colorHex.replace('#', '0x'));
+            const colorInt = typeof colorHex === 'string' ? parseInt(colorHex.replace('#', '0x')) : colorHex;
 
             // Load the car model
             this.vehicleLoader.loadVehicle(
@@ -564,14 +568,20 @@ export default {
                     // Prepare for animation
                     this.vehicleLoader.prepareForAnimation(model);
 
-                    // Position at origin
-                    model.position.set(0, 30, 0);
+                    // Position at starting point - slightly elevated to avoid immediate collisions
+                    model.position.set(0, 35, 0);
+                    
+                    // Make sure the car is properly oriented
+                    model.rotation.set(0, 0, 0);
 
                     // Add to scene
                     this.scene.add(model);
 
-                    // Replace car.mesh with this model in UI references
-                    this.car.mesh = model;
+                    // Update UI reference to the car model
+                    this.ui.car = model;
+                    
+                    // Log success
+                    console.log("Car model added to scene and UI updated");
                 },
                 (xhr) => {
                     console.log(`${xhr.loaded / xhr.total * 100}% loaded`);
@@ -580,12 +590,16 @@ export default {
                     console.error('Error loading car model:', error);
 
                     // Fallback to geometric car if model fails to load
+                    console.log("Using fallback car model");
                     this.car = new Car(this.carType);
+                    this.ui.car = this.car.mesh;
+                    this.ui.car.position.set(0, 35, 0);
+                    this.scene.add(this.ui.car);
                 }
             );
         },
 
-        loop() {
+        loop(deltaTime) {
             if (this.gameOver || this.gamePaused || !this.gameStarted) {
                 return;
             }
@@ -593,7 +607,7 @@ export default {
             try {
                 // Calculate delta time for time-based updates
                 const now = Date.now();
-                const deltaTime = (now - this.lastUpdateTime) / 1000; // Convert to seconds
+                deltaTime = deltaTime || (now - this.lastUpdateTime) / 1000; // Convert to seconds
                 this.lastUpdateTime = now;
                 
                 // Update the driver's hair animation
@@ -626,7 +640,7 @@ export default {
                 this.updateEnvironment();
 
                 // Handle lane changes
-                this.updateCarPosition();
+                this.updateCarPosition(deltaTime);
 
                 // Update camera for dynamic feel
                 this.updateCamera();
@@ -783,17 +797,54 @@ export default {
             }
         },
 
-        updateCarPosition() {
-            // Handle lane changes
-            if (this.keyState.ArrowLeft && this.carLane > 0) {
+        updateCarPosition(deltaTime) {
+            // If game hasn't started or is paused, don't update position
+            if (!this.gameStarted || this.gamePaused || this.gameOver) return;
+            
+            // Get the delta time if not provided
+            deltaTime = deltaTime || 0.016; // Default to 60fps if not provided
+            
+            // Forward movement - car always moves forward
+            if (this.ui && this.ui.car) {
+                // Base forward speed
+                let forwardSpeed = this.gameSpeed;
+                
+                // Speed up with W or Arrow Up
+                if (this.keyState.KeyW || this.keyState.ArrowUp) {
+                    forwardSpeed *= 1.2;
+                }
+                
+                // Slow down with S or Arrow Down
+                if (this.keyState.KeyS || this.keyState.ArrowDown) {
+                    forwardSpeed *= 0.8;
+                }
+                
+                // Apply boost if active
+                if (this.isBoosting) {
+                    forwardSpeed *= this.carBoostMultiplier;
+                }
+                
+                // Move forward
+                this.ui.car.position.x += forwardSpeed;
+                
+                // Update distance traveled for score calculation
+                this.distanceTraveled += forwardSpeed;
+            }
+            
+            // Handle lane changes with arrow keys or A/D
+            if ((this.keyState.ArrowLeft || this.keyState.KeyA) && this.carLane > 0) {
                 this.carLane--;
                 this.targetLaneZ = (this.carLane - 1) * 100;
-                this.keyState.ArrowLeft = false; // prevent continuous lane changes
+                // Reset key state to prevent continuous lane changes
+                this.keyState.ArrowLeft = false;
+                this.keyState.KeyA = false;
             }
-            else if (this.keyState.ArrowRight && this.carLane < 2) {
+            else if ((this.keyState.ArrowRight || this.keyState.KeyD) && this.carLane < 2) {
                 this.carLane++;
                 this.targetLaneZ = (this.carLane - 1) * 100;
-                this.keyState.ArrowRight = false; // prevent continuous lane changes
+                // Reset key state to prevent continuous lane changes
+                this.keyState.ArrowRight = false;
+                this.keyState.KeyD = false;
             }
 
             // Smoothly move car towards target lane
@@ -834,18 +885,14 @@ export default {
                 }
             }
 
-            // Add mouse control for finer movements within lane
-            const targetY = normalize(this.ui.mouse.y, -0.75, 0.75, 25, 50);
-            if (this.car && this.car.mesh) {
-                this.car.mesh.position.y += (targetY - this.car.mesh.position.y) * 0.1;
-            }
-
             // Add subtle car movement for realism
-            this.ui.car.position.y = 30 + Math.sin(this.distanceTraveled * 0.02) * 0.5;
+            if (this.ui && this.ui.car) {
+                this.ui.car.position.y = 30 + Math.sin(this.distanceTraveled * 0.02) * 0.5;
+            }
 
             // If boosting, add trail effect
             if (this.isBoosting && this.effectsManager) {
-                this.effectsManager.createTrail(this.car.mesh, 0xff6600, 20, 0.8);
+                this.effectsManager.createTrail(this.ui.car, 0xff6600, 20, 0.8);
             }
         },
 
@@ -1085,10 +1132,16 @@ export default {
                 this.keyState[e.code] = true;
             }
 
-            // Handle pause toggle with Space key
-            if (e.code === 'Space' && this.gameStarted) {
-                e.preventDefault(); // Prevent scrolling
+            // Handle pause toggle with Escape key
+            if (e.code === 'Escape' && this.gameStarted) {
+                e.preventDefault();
                 this.pauseGame();
+            }
+
+            // Handle boost with Space key
+            if (e.code === 'Space' && this.gameStarted && !this.gamePaused && !this.gameOver) {
+                e.preventDefault(); // Prevent scrolling
+                this.activateBoost();
             }
 
             // Start game with Enter key on start screen
@@ -1099,11 +1152,6 @@ export default {
             // Restart with R key when game over
             if (e.code === 'KeyR' && this.gameOver) {
                 this.restartGame();
-            }
-
-            // Activate boost with Shift
-            if (e.code === 'ShiftLeft' && this.gameStarted && !this.gamePaused && !this.gameOver) {
-                this.activateBoost();
             }
         },
 

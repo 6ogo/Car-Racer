@@ -2,29 +2,22 @@
 <template>
     <div class="car-selection">
         <h2>Select Your Ride</h2>
-
         <div class="preview-container">
-            <!-- 3D model preview -->
             <div class="model-preview" ref="modelPreview"></div>
-
-            <!-- Car name and stats -->
             <div class="car-info">
                 <h3>{{ cars[selectedCarIndex].name }}</h3>
                 <div class="car-stats">
-                    <div class="stat">
-                        <span>Speed:</span>
+                    <div class="stat"><span>Speed:</span>
                         <div class="stat-bar">
                             <div class="stat-fill" :style="{ width: cars[selectedCarIndex].speed * 10 + '%' }"></div>
                         </div>
                     </div>
-                    <div class="stat">
-                        <span>Handling:</span>
+                    <div class="stat"><span>Handling:</span>
                         <div class="stat-bar">
                             <div class="stat-fill" :style="{ width: cars[selectedCarIndex].handling * 10 + '%' }"></div>
                         </div>
                     </div>
-                    <div class="stat">
-                        <span>Boost:</span>
+                    <div class="stat"><span>Boost:</span>
                         <div class="stat-bar">
                             <div class="stat-fill" :style="{ width: cars[selectedCarIndex].boost * 10 + '%' }"></div>
                         </div>
@@ -33,25 +26,18 @@
                 <p class="car-ability">{{ cars[selectedCarIndex].ability }}</p>
             </div>
         </div>
-
         <div class="cars-container">
             <div v-for="(car, index) in cars" :key="index" class="car-option"
                 :class="{ selected: selectedCarIndex === index }" @click="selectCar(index)">
-                <div class="car-thumbnail" :style="{ backgroundColor: car.color }">
-                    {{ car.name.charAt(0) }}
-                </div>
+                <div class="car-thumbnail" :style="{ backgroundColor: car.color }">{{ car.name.charAt(0) }}</div>
                 <span class="car-name">{{ car.name }}</span>
             </div>
         </div>
-
-        <!-- Color selection -->
         <div class="color-selection">
             <div v-for="(color, index) in carColors" :key="index" class="color-option"
                 :class="{ selected: selectedColorIndex === index }" :style="{ backgroundColor: color.hex }"
-                @click="selectColor(index)">
-            </div>
+                @click="selectColor(index)"></div>
         </div>
-
         <button class="start-button" @click="startGame">Start Race!</button>
     </div>
 </template>
@@ -63,7 +49,6 @@ import VehicleLoader from './VehicleLoader';
 
 export default {
     name: 'CarSelection',
-
     data() {
         return {
             selectedCarIndex: 0,
@@ -75,16 +60,14 @@ export default {
             currentModel: null,
             vehicleLoader: null,
             animationId: null,
-
             carColors: [
                 { name: 'Red', hex: '#f25346' },
                 { name: 'Blue', hex: '#68c3c0' },
                 { name: 'Green', hex: '#669900' },
                 { name: 'Yellow', hex: '#ffcc00' },
                 { name: 'Black', hex: '#333333' },
-                { name: 'White', hex: '#ffffff' }
+                { name: 'White', hex: '#ffffff' },
             ],
-
             cars: [
                 {
                     name: 'Sports Car',
@@ -232,197 +215,116 @@ export default {
         this.vehicleLoader = new VehicleLoader();
         this.initScene();
         this.loadModel(this.cars[this.selectedCarIndex].modelFile);
-
-        // Handle window resize
         window.addEventListener('resize', this.handleResize);
     },
-
     beforeDestroy() {
-        // Clean up Three.js resources
         window.removeEventListener('resize', this.handleResize);
         this.stopAnimation();
-
-        if (this.renderer) {
-            this.renderer.dispose();
-        }
-
-        if (this.controls) {
-            this.controls.dispose();
-        }
-
-        // Remove any models from the scene
-        if (this.currentModel) {
-            this.scene.remove(this.currentModel);
-        }
+        if (this.renderer) this.renderer.dispose();
+        if (this.controls) this.controls.dispose();
+        if (this.currentModel) this.scene.remove(this.currentModel);
     },
-
     methods: {
         initScene() {
-            // Get the container element
             const container = this.$refs.modelPreview;
             const width = container.clientWidth;
             const height = container.clientHeight || 300;
-
-            // Create the scene
             this.scene = new THREE.Scene();
             this.scene.background = new THREE.Color(0x333333);
-
-            // Add lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-            this.scene.add(ambientLight);
-
+            this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
             const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
             directionalLight.position.set(1, 1, 1);
             this.scene.add(directionalLight);
-
             const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
             backLight.position.set(-1, 0.5, -1);
             this.scene.add(backLight);
-
-            // Create camera
             this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-            this.camera.position.set(3, 1.5, 3);
-
-            // Create renderer
+            this.camera.position.set(5, 2.5, 5); // Adjusted camera position
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
             this.renderer.setSize(width, height);
             this.renderer.setPixelRatio(window.devicePixelRatio);
             this.renderer.shadowMap.enabled = true;
             container.appendChild(this.renderer.domElement);
-
-            // Add orbit controls
             this.controls = new OrbitControls(this.camera, this.renderer.domElement);
             this.controls.enableDamping = true;
             this.controls.dampingFactor = 0.05;
             this.controls.minDistance = 2;
             this.controls.maxDistance = 5;
             this.controls.maxPolarAngle = Math.PI / 2;
-
-            // Create a ground plane
             const groundGeometry = new THREE.PlaneGeometry(10, 10);
-            const groundMaterial = new THREE.MeshStandardMaterial({
-                color: 0x999999,
-                roughness: 0.8,
-                metalness: 0.2
-            });
+            const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.8, metalness: 0.2 });
             const ground = new THREE.Mesh(groundGeometry, groundMaterial);
             ground.rotation.x = -Math.PI / 2;
             ground.receiveShadow = true;
             this.scene.add(ground);
-
-            // Add a grid helper
             const gridHelper = new THREE.GridHelper(10, 10, 0x000000, 0x444444);
             this.scene.add(gridHelper);
-
-            // Start animation loop
             this.startAnimation();
         },
-
         loadModel(modelFile) {
-            // Remove existing model
             if (this.currentModel) {
                 this.scene.remove(this.currentModel);
                 this.currentModel = null;
             }
-
-            // Load new model
-            this.vehicleLoader.loadVehicle(
-                modelFile,
-                (model) => {
-                    this.currentModel = model;
-
-                    // Apply selected color
-                    const colorHex = parseInt(this.carColors[this.selectedColorIndex].hex.replace('#', '0x'));
-                    this.vehicleLoader.setVehicleColor(model, colorHex);
-
-                    // Prepare for animation
-                    this.vehicleLoader.prepareForAnimation(model);
-
-                    // Add to scene
-                    this.scene.add(model);
-
-                    // Adjust camera to focus on model
-                    const box = new THREE.Box3().setFromObject(model);
-                    const center = box.getCenter(new THREE.Vector3());
-                    this.controls.target.copy(center);
-                    this.controls.update();
-                },
-                (xhr) => {
-                    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-                },
-                (error) => {
-                    console.error('Error loading model:', error);
-                }
-            );
+            this.vehicleLoader.loadVehicle(modelFile, (model) => {
+                this.currentModel = model;
+                const colorHex = parseInt(this.carColors[this.selectedColorIndex].hex.replace('#', '0x'));
+                this.vehicleLoader.setVehicleColor(model, colorHex);
+                this.vehicleLoader.prepareForAnimation(model);
+                this.scene.add(model);
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                this.controls.target.copy(center);
+                this.controls.update();
+            }, (xhr) => {
+                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+            }, (error) => {
+                console.error('Error loading model:', error);
+            });
         },
-
         startAnimation() {
             const animate = () => {
                 this.animationId = requestAnimationFrame(animate);
-
-                // Update controls
-                if (this.controls) {
-                    this.controls.update();
-                }
-
-                // Animate the model
+                if (this.controls) this.controls.update();
                 if (this.currentModel && this.currentModel.animateWheels) {
                     this.currentModel.animateWheels(0.1);
-
-                    // Slowly rotate the model for display
                     this.currentModel.rotation.y += 0.002;
                 }
-
-                // Render the scene
                 this.renderer.render(this.scene, this.camera);
             };
-
             animate();
         },
-
         stopAnimation() {
             if (this.animationId !== null) {
                 cancelAnimationFrame(this.animationId);
                 this.animationId = null;
             }
         },
-
         handleResize() {
             const container = this.$refs.modelPreview;
             const width = container.clientWidth;
             const height = container.clientHeight || 300;
-
-            // Update camera aspect ratio
             this.camera.aspect = width / height;
             this.camera.updateProjectionMatrix();
-
-            // Update renderer size
             this.renderer.setSize(width, height);
         },
-
         selectCar(index) {
             this.selectedCarIndex = index;
             this.loadModel(this.cars[index].modelFile);
         },
-
         selectColor(index) {
             this.selectedColorIndex = index;
-
             if (this.currentModel) {
                 const colorHex = parseInt(this.carColors[index].hex.replace('#', '0x'));
                 this.vehicleLoader.setVehicleColor(this.currentModel, colorHex);
             }
         },
-
         startGame() {
-            // Combine car data with selected color
             const carData = { ...this.cars[this.selectedCarIndex] };
             carData.color = this.carColors[this.selectedColorIndex].hex;
-
-            // Emit the selected car data to the parent component
             this.$emit('car-selected', carData);
-        }
-    }
+        },
+    },
 };
 </script>
 

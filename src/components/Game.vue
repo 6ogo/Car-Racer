@@ -128,7 +128,10 @@
   import EffectsManager from './EffectsManager';
   import CarSelection from './CarSelection';
   import MobileControls from './MobileControls';
-  
+  import RoadGenerator from './RoadGenerator';
+  import PoliceChase from './PoliceChase';
+  import VehicleLoader from './VehicleLoader';
+
   function normalize(v, vmin, vmax, tmin, tmax) {
     var nv = Math.max(Math.min(v, vmax), vmin);
     var dv = vmax - vmin;
@@ -247,9 +250,26 @@
           'Rain': 'rain',
           'Snow': 'snow',
           'Desert': 'desert'
-        }
-      };
+        },
+        roadGenerator: null,
+        policeChase: null,
+        vehicleLoader: null,
+        
+        // For FBX models
+        carModel: null,
+        
+        // For branching roads
+        currentRoadPath: 'main',
+        
+        // For police chase
+        policeChaseActive: false,
+        wantedLevel: 0,
+        
+        // Last timestamp for delta time calculation
+        lastUpdateTime: 0
+    };
     },
+
   
     computed: {
       renderSize() {
@@ -323,8 +343,27 @@
       const savedHighScore = localStorage.getItem('carRacerHighScore');
       if (savedHighScore) {
         this.highScore = parseInt(savedHighScore);
-      }
-    },
+      };
+      
+      // Initialize vehicle loader
+      this.vehicleLoader = new VehicleLoader();
+        
+        // Initialize the road generator after the scene is created
+        this.roadGenerator = new RoadGenerator(this.scene);
+
+        // Initialize police chase system
+        this.policeChase = new PoliceChase(this.scene, this.roadGenerator);
+
+        // Set audio for police chase
+        const sirenAudio = new Audio('/assets/sounds/police_siren.mp3');
+        const chatterAudio = new Audio('/assets/sounds/radio_chatter.mp3');
+        this.policeChase.setSirenSound(sirenAudio);
+        this.policeChase.setRadioChatter(chatterAudio);
+
+        // Set current timestamp
+        this.lastUpdateTime = Date.now();
+        },
+
     
     mounted() {
       // Focus the div for keyboard controls
@@ -367,38 +406,74 @@
       },
       
       onCarSelected(carData) {
-        // Store selected car data
-        this.selectedCar = carData;
-        this.carType = carData.modelType;
-        this.carBoostDuration = carData.boostDuration;
-        this.carBoostMultiplier = carData.boostMultiplier;
-        this.carTurnSpeed = carData.turnSpeed;
-        
-        // Set special abilities based on car type
-        if (carData.modelType === 'balanced' && carData.coinCollectionRadius) {
-          this.carCoinRadius = carData.coinCollectionRadius;
-        } else {
-          this.carCoinRadius = 1;
-        }
-        
-        if (carData.modelType === 'monster' && carData.obstacleImmunity) {
-          this.carImmuneToObstacles = true;
-          this.immunityRefreshTime = carData.immunityRefreshTime || 15000;
-        } else {
-          this.carImmuneToObstacles = false;
-        }
-        
-        // Create the selected car type
-        this.car = new Car(this.carType);
-        
-        // Hide selection screen and start the game
-        this.showingCarSelection = false;
-        this.startGame();
-      },
+  // Store selected car data
+  this.selectedCar = carData;
+  this.carType = carData.modelType;
+  this.carBoostDuration = carData.boostDuration;
+  this.carBoostMultiplier = carData.boostMultiplier;
+  this.carTurnSpeed = carData.turnSpeed;
+  
+  // Load the FBX model
+  this.loadCarModel(carData.modelFile, carData.color);
+  
+  // Hide selection screen and start the game
+  this.showingCarSelection = false;
+  this.startGame();
+},
+
+loadCarModel(modelFile, colorHex) {
+  // Remove existing model if any
+  if (this.carModel) {
+    this.scene.remove(this.carModel);
+    this.carModel = null;
+  }
+  
+  // Convert hex color string to integer
+  const colorInt = parseInt(colorHex.replace('#', '0x'));
+  
+  // Load the car model
+  this.vehicleLoader.loadVehicle(
+    modelFile,
+    (model) => {
+      // Store reference to model
+      this.carModel = model;
       
-      loop() {
-        // Skip if game is over or paused
-        if (this.gameOver || this.gamePaused || !this.gameStarted) return;
+      // Apply color
+      this.vehicleLoader.setVehicleColor(model, colorInt);
+      
+      // Prepare for animation
+      this.vehicleLoader.prepareForAnimation(model);
+      
+      // Position at origin
+      model.position.set(0, 30, 0);
+      
+      // Add to scene
+      this.scene.add(model);
+      
+      // Replace car.mesh with this model in UI references
+      this.car.mesh = model;
+    },
+    (xhr) => {
+      console.log(`${xhr.loaded / xhr.total * 100}% loaded`);
+    },
+    (error) => {
+      console.error('Error loading car model:', error);
+      
+      // Fallback to geometric car if model fails to load
+      this.car = new Car(this.carType);
+    }
+  );
+},
+
+      
+loop() {
+  // Skip if game is over or paused
+  if (this.gameOver || this.gamePaused || !this.gameStarted) return;
+  
+  // Calculate delta time for time-based updates
+  const now = Date.now();
+  const deltaTime = (now - this.lastUpdateTime) / 1000; // Convert to seconds
+  this.lastUpdateTime = now;
         
         // Update the driver's hair animation
         this.car.driver.updateHairs();
@@ -434,7 +509,25 @@
         
         // Update environment effects (rain, snow, etc.)
         this.environmentManager.update();
-        
+          // Update road generation
+  this.roadGenerator.update(this.ui.car.position);
+  
+  // Update police chase system
+  this.policeChase.update(this.ui.car.position, this.gameSpeed, deltaTime);
+  
+  // Update police chase UI info
+  this.policeChaseActive = this.policeChase.isChaseActive();
+  if (this.policeChaseActive) {
+    this.wantedLevel = Math.ceil(this.policeChase.getChaseIntensity() * 5);
+  } else {
+    this.wantedLevel = 0;
+  }
+  
+  // Animate car wheels if using FBX model
+  if (this.carModel && this.carModel.animateWheels) {
+    this.carModel.animateWheels(this.gameSpeed);
+  }
+
         // Check for collisions
         if (this.highway.checkCollisions(this.ui.car.position)) {
           // Check if shield or immunity is active
@@ -693,6 +786,32 @@
         } else {
           this.ui.car.rotation.z = 0;
         }
+
+          // Get information about the nearest lane
+  const laneInfo = this.roadGenerator.getNearestLanePosition(this.ui.car.position);
+  
+  if (laneInfo) {
+    // Apply slight auto-correction to follow road
+    const laneZ = laneInfo.position.z;
+    const diff = laneZ - this.ui.car.position.z;
+    
+    // Only auto-correct if not actively changing lanes
+    if (Math.abs(this.targetLaneZ - this.ui.car.position.z) < 5) {
+      this.ui.car.position.z += diff * 0.02;
+    }
+    
+    // Update car rotation to follow road curve
+    const roadAhead = this.roadGenerator.getRoadAhead(this.ui.car.position, 100);
+    if (roadAhead.pathType === 'curve_left') {
+      this.ui.car.rotation.y = Math.max(-0.1, this.ui.car.rotation.y - 0.001);
+    } else if (roadAhead.pathType === 'curve_right') {
+      this.ui.car.rotation.y = Math.min(0.1, this.ui.car.rotation.y + 0.001);
+    } else {
+      // Gradually return to straight
+      this.ui.car.rotation.y *= 0.98;
+    }
+  }
+
         
         // Add mouse control for finer movements within lane
         const targetY = normalize(this.ui.mouse.y, -0.75, 0.75, 25, 50);

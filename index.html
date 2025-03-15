@@ -107,6 +107,35 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    /* Fallback content */
+    .fallback-content {
+      display: none;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .fallback-content h1 {
+      color: #f25346;
+      margin-bottom: 20px;
+    }
+    
+    .fallback-content p {
+      margin-bottom: 15px;
+      line-height: 1.5;
+    }
+    
+    .fallback-button {
+      display: inline-block;
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      text-decoration: none;
+      border-radius: 5px;
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body>
@@ -124,7 +153,15 @@
     <div id="loading-text" class="loading-text">Loading game...</div>
   </div>
   
-  <div id="app"></div>
+  <div id="app">
+    <!-- Fallback content if Vue fails to load -->
+    <div class="fallback-content" id="fallback-content">
+      <h1>Car Racer</h1>
+      <p>Oops! It seems the game is having trouble loading.</p>
+      <p>Please try refreshing the page or come back later.</p>
+      <a href="/" class="fallback-button">Refresh</a>
+    </div>
+  </div>
   
   <script>
     // Simulate loading progress
@@ -145,6 +182,14 @@
           loadingScreen.style.opacity = '0';
           setTimeout(() => {
             loadingScreen.style.display = 'none';
+            
+            // Show fallback content if Vue hasn't mounted after 5 seconds
+            setTimeout(() => {
+              const appContent = document.querySelector('#app > div');
+              if (!appContent || appContent.id === 'fallback-content') {
+                document.getElementById('fallback-content').style.display = 'block';
+              }
+            }, 5000);
           }, 500);
         }, 500);
         
@@ -154,6 +199,14 @@
         loadingText.textContent = `Loading game... ${Math.floor(progress)}%`;
       }
     }, 200);
+    
+    // Monitor for Vue loading errors
+    window.addEventListener('error', function(event) {
+      console.error('Global error caught:', event.error);
+      loadingText.textContent = 'Error loading game';
+      loadingBar.style.backgroundColor = '#f44336';
+      document.getElementById('fallback-content').style.display = 'block';
+    });
   </script>
   <!-- built files will be auto injected -->
 </body>

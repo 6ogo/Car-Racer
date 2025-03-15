@@ -102,6 +102,17 @@
 </template>
 
 <script>
+// Add error handling
+window.addEventListener('error', function (e) {
+    console.error('Global error caught:', e.error);
+});
+
+// Catch unhandled promise rejections
+window.addEventListener('unhandledrejection', function (e) {
+    console.error('Unhandled promise rejection:', e.reason);
+});
+
+
 import * as THREE from 'three';
 import Car from './Car';
 import Highway from './Highway';
@@ -349,6 +360,14 @@ export default {
         // Set current timestamp
         this.lastUpdateTime = Date.now();
     },
+    // Add error handlers to component lifecycle hooks
+    errorCaptured(err, vm, info) {
+        console.error('Component error caught:', err);
+        console.log('Error info:', info);
+        console.log('Component with error:', vm);
+        return false; // prevent propagation
+    },
+
 
 
     mounted() {
@@ -360,6 +379,19 @@ export default {
 
         // Preload vehicle models
         this.preloadVehicles();
+        // Add error logging
+        console.log('Game component mounted');
+        console.log('THREE.js version:', THREE.REVISION);
+
+        // Verify critical objects
+        if (!this.scene) console.error('Scene is undefined');
+        if (!this.camera) console.error('Camera is undefined');
+        if (!this.renderer) console.error('Renderer is undefined');
+
+        // Dispatch a test event
+        this.$nextTick(() => {
+            console.log('App fully rendered');
+        });
     },
 
     beforeDestroy() {

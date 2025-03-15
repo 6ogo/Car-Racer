@@ -492,6 +492,41 @@ export default class RoadGenerator {
     path.segments = [];
   }
   
+  /**
+   * Reset the road generator to its initial state
+   */
+  reset() {
+    // Clear all existing road segments from the scene
+    this.roadSegments.forEach(segment => {
+      if (segment.mesh) {
+        this.scene.remove(segment.mesh);
+      }
+    });
+    
+    // Reset all arrays
+    this.roadSegments = [];
+    this.activeRoads = [];
+    this.branchingRoads = [];
+    
+    // Reset paths
+    this.activePaths = [
+      { 
+        id: 'main',
+        segments: [],
+        position: new THREE.Vector3(-1000, 0, 0), 
+        direction: new THREE.Vector3(1, 0, 0),
+        turnAngle: 0,
+        active: true
+      }
+    ];
+    
+    // Reset player path
+    this.playerPath = 'main';
+    this.currentSegmentIndex = 0;
+    
+    console.log("Road generator reset complete");
+  }
+  
   // Get information about the road ahead for AI navigation
   getRoadAhead(position, distance) {
     // Find current path

@@ -442,24 +442,78 @@ export default class VehicleLoader {
    * @param {number} color - The color as a hex value
    */
   setVehicleColor(model, color) {
-    model.traverse((child) => {
+    const material = new THREE.MeshPhongMaterial({
+      color: color,
+      flatShading: false,
+      shininess: 120
+    });
+    
+    // If model is a mesh, apply directly
+    if (model.isMesh) {
+      const name = model.name.toLowerCase();
+      
+      // Don't apply car color to wheels or windows
+      if (name.includes('wheel') || name.includes('tire')) {
+        // Create a black material for wheels
+        const blackMaterial = new THREE.MeshStandardMaterial({
+          color: 0x222222,
+          roughness: 0.7,
+          metalness: 0.5
+        });
+        model.material = blackMaterial;
+      } 
+      else if (name.includes('window') || name.includes('glass') || name.includes('windshield')) {
+        // Create a glass-like material
+        const glassMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0x111a2b,
+          roughness: 0.1,
+          metalness: 0.9,
+          transparent: true,
+          opacity: 0.7,
+          envMapIntensity: 1
+        });
+        model.material = glassMaterial;
+      }
+      else {
+        // Apply car color to other parts
+        model.material = material;
+      }
+      return;
+    }
+    
+    // Apply to all meshes in the model
+    model.traverse(child => {
       if (child.isMesh) {
-        const matName = child.material ? child.material.name.toLowerCase() : '';
+        const name = child.name.toLowerCase();
         
-        // Apply color to body parts
-        if (matName.includes('body') || 
-            child.name.toLowerCase().includes('body') || 
-            (!matName.includes('wheel') && 
-             !matName.includes('glass') && 
-             !matName.includes('window') && 
-             !matName.includes('tire') &&
-             !matName.includes('light'))) {
-          child.material.color.setHex(color);
+        // Don't apply car color to wheels or windows
+        if (name.includes('wheel') || name.includes('tire')) {
+          // Create a black material for wheels
+          const blackMaterial = new THREE.MeshStandardMaterial({
+            color: 0x222222,
+            roughness: 0.7,
+            metalness: 0.5
+          });
+          child.material = blackMaterial;
+        } 
+        else if (name.includes('window') || name.includes('glass') || name.includes('windshield')) {
+          // Create a glass-like material
+          const glassMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x111a2b,
+            roughness: 0.1,
+            metalness: 0.9,
+            transparent: true,
+            opacity: 0.7,
+            envMapIntensity: 1
+          });
+          child.material = glassMaterial;
+        }
+        else {
+          // Apply car color to other parts
+          child.material = material.clone();
         }
       }
     });
-    
-    return model;
   }
   
   /**

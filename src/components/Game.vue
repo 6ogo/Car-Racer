@@ -656,14 +656,26 @@ export default {
                 console.log("Creating new road generator");
                 this.roadGenerator = new RoadGenerator(this.scene);
             } else {
-                // Reset road generator
-                console.log("Resetting existing road generator");
-                this.roadGenerator.reset();
-                this.roadGenerator.initRoad();
+                // Check if reset method exists before trying to call it
+                if (typeof this.roadGenerator.reset === 'function') {
+                    console.log("Resetting existing road generator");
+                    this.roadGenerator.reset();
+                } else {
+                    console.log("Reset method not available, creating new road generator");
+                    // Remove old road generator and create a new one
+                    if (this.roadGenerator.roadSegments) {
+                        this.roadGenerator.roadSegments.forEach(segment => {
+                            if (segment.mesh && this.scene) {
+                                this.scene.remove(segment.mesh);
+                            }
+                        });
+                    }
+                    this.roadGenerator = new RoadGenerator(this.scene);
+                }
             }
             
             // Make sure the initial road segments are generated
-            if (this.roadGenerator.roadSegments.length === 0) {
+            if (!this.roadGenerator.roadSegments || this.roadGenerator.roadSegments.length === 0) {
                 console.log("No road segments found, initializing road");
                 this.roadGenerator.initRoad();
             }

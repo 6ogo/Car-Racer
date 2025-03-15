@@ -94,7 +94,7 @@ export default {
                     handling: 7,
                     boost: 8,
                     ability: 'Higher top speed and longer boost duration',
-                    modelType: 'sports',
+                    modelType: 'speedster',
                     boostDuration: 4000, // 4 seconds
                     boostMultiplier: 1.7,
                     turnSpeed: 0.9
@@ -107,7 +107,7 @@ export default {
                     handling: 8,
                     boost: 7,
                     ability: 'Better coin collection radius',
-                    modelType: 'sedan',
+                    modelType: 'balanced',
                     boostDuration: 3000, // 3 seconds
                     boostMultiplier: 1.5,
                     turnSpeed: 1,
@@ -229,6 +229,7 @@ export default {
     },
 
     mounted() {
+        console.log("CarSelection component mounted");
         this.vehicleLoader = new VehicleLoader();
         this.initScene();
         this.loadModel(this.cars[this.selectedCarIndex].modelFile);
@@ -258,8 +259,14 @@ export default {
 
     methods: {
         initScene() {
+            console.log("Initializing 3D scene");
             // Get the container element
             const container = this.$refs.modelPreview;
+            if (!container) {
+                console.error("Model preview container not found!");
+                return;
+            }
+
             const width = container.clientWidth;
             const height = container.clientHeight || 300;
 
@@ -281,7 +288,8 @@ export default {
 
             // Create camera
             this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-            this.camera.position.set(0, 2, 10);
+            this.camera.position.set(0, 2, 15);
+            this.camera.lookAt(0, 0, 0);
 
             // Create renderer
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -316,9 +324,12 @@ export default {
 
             // Start animation loop
             this.startAnimation();
+            
+            console.log("3D scene initialized");
         },
 
         loadModel(modelFile) {
+            console.log(`Loading model: ${modelFile}`);
             // Remove existing model
             if (this.currentModel) {
                 this.scene.remove(this.currentModel);
@@ -346,6 +357,8 @@ export default {
                     const center = box.getCenter(new THREE.Vector3());
                     this.controls.target.copy(center);
                     this.controls.update();
+                    
+                    console.log(`Model ${modelFile} loaded successfully`);
                 },
                 (xhr) => {
                     console.log((xhr.loaded / xhr.total * 100) + '% loaded');
@@ -374,7 +387,9 @@ export default {
                 }
 
                 // Render the scene
-                this.renderer.render(this.scene, this.camera);
+                if (this.renderer && this.scene && this.camera) {
+                    this.renderer.render(this.scene, this.camera);
+                }
             };
 
             animate();
@@ -389,15 +404,21 @@ export default {
 
         handleResize() {
             const container = this.$refs.modelPreview;
+            if (!container) return;
+            
             const width = container.clientWidth;
             const height = container.clientHeight || 300;
 
             // Update camera aspect ratio
-            this.camera.aspect = width / height;
-            this.camera.updateProjectionMatrix();
+            if (this.camera) {
+                this.camera.aspect = width / height;
+                this.camera.updateProjectionMatrix();
+            }
 
             // Update renderer size
-            this.renderer.setSize(width, height);
+            if (this.renderer) {
+                this.renderer.setSize(width, height);
+            }
         },
 
         selectCar(index) {
@@ -415,14 +436,14 @@ export default {
         },
 
         startGame() {
-            console.log("Start Game button clicked!");
-            
+            console.log("Start Race button clicked");
             // Combine car data with selected color
             const carData = { ...this.cars[this.selectedCarIndex] };
             carData.color = this.carColors[this.selectedColorIndex].hex;
-            
+
+            // Debug log
             console.log("Emitting car-selected event with data:", carData);
-            
+
             // Emit the selected car data to the parent component
             this.$emit('car-selected', carData);
         }
@@ -441,18 +462,15 @@ export default {
     align-items: center;
     padding: 20px;
     color: white;
+    z-index: 100;
     position: absolute;
     top: 0;
     left: 0;
-    z-index: 100;
-}
-
-.selection-header {
-    margin-bottom: 20px;
 }
 
 h2 {
     font-size: 36px;
+    margin-bottom: 30px;
     text-shadow: 0 0 10px rgba(255, 215, 0, 0.7);
 }
 
@@ -597,6 +615,7 @@ h2 {
     cursor: pointer;
     border-radius: 5px;
     transition: all 0.3s;
+    z-index: 110;
 }
 
 .start-button:hover {

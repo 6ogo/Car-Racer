@@ -1,6 +1,6 @@
 // src/components/VehicleLoader.js
 import * as THREE from 'three';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader';
 
 export default class VehicleLoader {
   constructor() {
@@ -42,7 +42,7 @@ export default class VehicleLoader {
     }
 
     // Load the model
-    const modelPath = `/assets/models/vehicles/${modelName}.fbx`;
+    const modelPath = `${process.env.BASE_URL}assets/models/vehicles/${modelName}.fbx`;
     
     console.log(`Loading model from: ${modelPath}`);
     
@@ -107,31 +107,20 @@ export default class VehicleLoader {
     // Determine fallback color based on model name
     const fallbackColor = this.fallbackColors[modelName] || 0xcccccc;
     
-    // Create a simple car shape
-    const bodyGeom = new THREE.BoxGeometry(80, 30, 50);
-    const bodyMat = new THREE.MeshPhongMaterial({
-      color: fallbackColor,
-      flatShading: true
-    });
-    
-    const body = new THREE.Mesh(bodyGeom, bodyMat);
-    body.castShadow = true;
-    body.receiveShadow = true;
-    fallbackModel.add(body);
-    
-    // Add a roof
-    const roofGeom = new THREE.BoxGeometry(40, 25, 50);
-    const roof = new THREE.Mesh(roofGeom, bodyMat);
-    roof.position.set(-15, 25, 0);
-    roof.castShadow = true;
-    roof.receiveShadow = true;
-    fallbackModel.add(roof);
-    
-    // Add wheels
-    this.addWheelToFallback(fallbackModel, -25, -15, 25);
-    this.addWheelToFallback(fallbackModel, -25, -15, -25);
-    this.addWheelToFallback(fallbackModel, 25, -15, 25);
-    this.addWheelToFallback(fallbackModel, 25, -15, -25);
+    // Create model based on type
+    if (modelName.includes('sports') || modelName.includes('roadster')) {
+      // Sleek, sports car shape
+      this.createSportsCar(fallbackModel, fallbackColor);
+    } else if (modelName.includes('monster') || modelName.includes('truck')) {
+      // Taller, truck shape
+      this.createTruck(fallbackModel, fallbackColor);
+    } else if (modelName.includes('police')) {
+      // Police vehicle with light bar
+      this.createPoliceCar(fallbackModel, fallbackColor);
+    } else {
+      // Default car shape
+      this.createSedan(fallbackModel, fallbackColor);
+    }
     
     // Prepare for animation
     this.prepareForAnimation(fallbackModel);
@@ -139,11 +128,177 @@ export default class VehicleLoader {
     return fallbackModel;
   }
   
+  createSportsCar(model, color) {
+    const bodyMat = new THREE.MeshPhongMaterial({
+      color: color,
+      flatShading: true
+    });
+    
+    // Low, sleek body
+    const bodyGeom = new THREE.BoxGeometry(90, 25, 45);
+    const body = new THREE.Mesh(bodyGeom, bodyMat);
+    body.position.y = 12.5;
+    body.castShadow = true;
+    body.receiveShadow = true;
+    model.add(body);
+    
+    // Sleek roof
+    const roofGeom = new THREE.BoxGeometry(50, 20, 45);
+    const roof = new THREE.Mesh(roofGeom, bodyMat);
+    roof.position.set(-15, 35, 0);
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    model.add(roof);
+    
+    // Windshield
+    const windshieldMat = new THREE.MeshPhongMaterial({
+      color: 0x88ccff,
+      transparent: true,
+      opacity: 0.7
+    });
+    const windshieldGeom = new THREE.BoxGeometry(3, 18, 35);
+    const windshield = new THREE.Mesh(windshieldGeom, windshieldMat);
+    windshield.position.set(10, 35, 0);
+    model.add(windshield);
+    
+    // Wheels
+    this.addWheelToFallback(model, -25, 10, 25, 12);
+    this.addWheelToFallback(model, -25, 10, -25, 12);
+    this.addWheelToFallback(model, 25, 10, 25, 12);
+    this.addWheelToFallback(model, 25, 10, -25, 12);
+    
+    // Spoiler
+    const spoilerGeom = new THREE.BoxGeometry(15, 5, 50);
+    const spoiler = new THREE.Mesh(spoilerGeom, bodyMat);
+    spoiler.position.set(-40, 40, 0);
+    spoiler.castShadow = true;
+    spoiler.receiveShadow = true;
+    model.add(spoiler);
+  }
+  
+  createTruck(model, color) {
+    const bodyMat = new THREE.MeshPhongMaterial({
+      color: color,
+      flatShading: true
+    });
+    
+    // Main body
+    const bodyGeom = new THREE.BoxGeometry(75, 35, 55);
+    const body = new THREE.Mesh(bodyGeom, bodyMat);
+    body.position.y = 27.5;
+    body.castShadow = true;
+    body.receiveShadow = true;
+    model.add(body);
+    
+    // Cabin
+    const cabinGeom = new THREE.BoxGeometry(35, 25, 45);
+    const cabin = new THREE.Mesh(cabinGeom, bodyMat);
+    cabin.position.set(-10, 52.5, 0);
+    cabin.castShadow = true;
+    cabin.receiveShadow = true;
+    model.add(cabin);
+    
+    // Windshield
+    const windshieldMat = new THREE.MeshPhongMaterial({
+      color: 0x88ccff,
+      transparent: true,
+      opacity: 0.7
+    });
+    const windshieldGeom = new THREE.BoxGeometry(3, 20, 35);
+    const windshield = new THREE.Mesh(windshieldGeom, windshieldMat);
+    windshield.position.set(10, 52.5, 0);
+    model.add(windshield);
+    
+    // Extra large wheels
+    this.addWheelToFallback(model, -20, 15, 30, 18);
+    this.addWheelToFallback(model, -20, 15, -30, 18);
+    this.addWheelToFallback(model, 20, 15, 30, 18);
+    this.addWheelToFallback(model, 20, 15, -30, 18);
+  }
+  
+  createPoliceCar(model, color) {
+    // Create a basic sedan
+    this.createSedan(model, 0x2233aa); // Police blue
+    
+    // Add light bar on roof
+    const lightBarGeom = new THREE.BoxGeometry(20, 5, 40);
+    const lightBarMat = new THREE.MeshPhongMaterial({
+      color: 0x222222
+    });
+    
+    const lightBar = new THREE.Mesh(lightBarGeom, lightBarMat);
+    lightBar.position.set(-15, 55, 0);
+    model.add(lightBar);
+    
+    // Red and blue lights
+    const redLightGeom = new THREE.BoxGeometry(5, 5, 15);
+    const redLightMat = new THREE.MeshPhongMaterial({
+      color: 0xff0000,
+      emissive: 0xff0000,
+      emissiveIntensity: 0.5
+    });
+    
+    const redLight = new THREE.Mesh(redLightGeom, redLightMat);
+    redLight.position.set(-15, 60, -10);
+    model.add(redLight);
+    
+    const blueLightGeom = new THREE.BoxGeometry(5, 5, 15);
+    const blueLightMat = new THREE.MeshPhongMaterial({
+      color: 0x0000ff,
+      emissive: 0x0000ff,
+      emissiveIntensity: 0.5
+    });
+    
+    const blueLight = new THREE.Mesh(blueLightGeom, blueLightMat);
+    blueLight.position.set(-15, 60, 10);
+    model.add(blueLight);
+  }
+  
+  createSedan(model, color) {
+    const bodyMat = new THREE.MeshPhongMaterial({
+      color: color,
+      flatShading: true
+    });
+    
+    // Car Body
+    const bodyGeom = new THREE.BoxGeometry(80, 30, 50);
+    const body = new THREE.Mesh(bodyGeom, bodyMat);
+    body.position.y = 15;
+    body.castShadow = true;
+    body.receiveShadow = true;
+    model.add(body);
+    
+    // Car Roof
+    const roofGeom = new THREE.BoxGeometry(40, 25, 50);
+    const roof = new THREE.Mesh(roofGeom, bodyMat);
+    roof.position.set(-15, 42.5, 0);
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    model.add(roof);
+    
+    // Windshield
+    const windshieldMat = new THREE.MeshPhongMaterial({
+      color: 0x88ccff,
+      transparent: true,
+      opacity: 0.7
+    });
+    const windshieldGeom = new THREE.BoxGeometry(3, 20, 40);
+    const windshield = new THREE.Mesh(windshieldGeom, windshieldMat);
+    windshield.position.set(10, 35, 0);
+    model.add(windshield);
+    
+    // Wheels
+    this.addWheelToFallback(model, -25, 10, 25);
+    this.addWheelToFallback(model, -25, 10, -25);
+    this.addWheelToFallback(model, 25, 10, 25);
+    this.addWheelToFallback(model, 25, 10, -25);
+  }
+  
   /**
    * Add wheel to fallback model
    */
-  addWheelToFallback(parent, x, y, z) {
-    const wheelGeom = new THREE.CylinderGeometry(10, 10, 10, 16);
+  addWheelToFallback(parent, x, y, z, size = 10) {
+    const wheelGeom = new THREE.CylinderGeometry(size, size, 10, 16);
     wheelGeom.rotateZ(Math.PI / 2);
     
     const wheelMat = new THREE.MeshPhongMaterial({

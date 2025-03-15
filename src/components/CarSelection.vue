@@ -58,7 +58,7 @@
 
 <script>
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import VehicleLoader from './VehicleLoader';
 
 export default {

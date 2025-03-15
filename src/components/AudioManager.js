@@ -20,7 +20,7 @@ export default class AudioManager {
   
     createSound(name, src, loop = false) {
       const audio = new Audio();
-      audio.src = `/static/sounds/${src}`; // Adjust path as needed
+      audio.src = `${process.env.BASE_URL}assets/sounds/${src}`;
       audio.loop = loop;
       
       this.sounds[name] = {

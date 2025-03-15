@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import Motorbike from './Motorbike'
 import Truck from './Truck'
 import Booster from './Booster'
+import PowerUp from './PowerUp'
 
 export default class Highway {
   constructor() {
@@ -35,6 +36,9 @@ export default class Highway {
 
     // Create array to store coins
     this.coins = []
+    
+    // Create array to store power-ups
+    this.powerUps = []
 
     // Segments tracking for endless scrolling
     this.segments = []
@@ -64,6 +68,25 @@ export default class Highway {
     })
 
     return booster
+  }
+  
+  createPowerUp(type, lane, distance) {
+    const posZ = lane * 100 - 100  // Same lane positioning as obstacles
+
+    const powerUp = new PowerUp(type)
+    powerUp.mesh.position.set(distance, 40, posZ)
+    powerUp.mesh.castShadow = true
+
+    this.mesh.add(powerUp.mesh)
+
+    this.powerUps.push({
+      mesh: powerUp.mesh,
+      powerUp: powerUp,  // Keep reference to the actual powerUp object
+      type: type,
+      lane: lane
+    })
+
+    return powerUp
   }
 
   addRoadMarkings() {
@@ -291,12 +314,32 @@ export default class Highway {
         i--
       }
     }
+    
+    // Update power-up positions and animations
+    for (let i = 0; i < this.powerUps.length; i++) {
+      const powerUp = this.powerUps[i]
+      powerUp.mesh.position.x -= speed
+      
+      // Update animation
+      powerUp.powerUp.update()
+
+      // Remove power-ups that are behind the player
+      if (powerUp.mesh.position.x < -200) {
+        this.mesh.remove(powerUp.mesh)
+        this.powerUps.splice(i, 1)
+        i--
+      }
+    }
+    
     const now = Date.now()
 
     // Update booster positions
     for (let i = 0; i < this.boosters.length; i++) {
       const booster = this.boosters[i]
       booster.mesh.position.x -= speed
+      
+      // Update animation
+      booster.booster.update()
 
       // Remove boosters that are behind the player
       if (booster.mesh.position.x < -200) {
@@ -375,6 +418,8 @@ export default class Highway {
         return true
       }
     }
+    
+    return false;
   }
 
   // Check if player car collides with boosters
@@ -383,75 +428,114 @@ export default class Highway {
       xMin: carPosition.x - 40,
       xMax: carPosition.x + 40,
       zMin: carPosition.z - 25,
-        zMax: carPosition.z + 25
-      }
-
-      for (let i = 0; i < this.boosters.length; i++) {
-        const booster = this.boosters[i]
-        const boosterBoundingBox = {
-          xMin: booster.mesh.position.x - 15,
-          xMax: booster.mesh.position.x + 15,
-          zMin: booster.mesh.position.z - 15,
-          zMax: booster.mesh.position.z + 15
-        }
-
-        // Simple AABB collision detection
-        if (carBoundingBox.xMax > boosterBoundingBox.xMin &&
-          carBoundingBox.xMin < boosterBoundingBox.xMax &&
-          carBoundingBox.zMax > boosterBoundingBox.zMin &&
-          carBoundingBox.zMin < boosterBoundingBox.zMax) {
-
-          // Remove the booster
-          this.mesh.remove(booster.mesh)
-          this.boosters.splice(i, 1)
-
-          // Return true to indicate a booster was collected
-          return true
-        }
-      }
-
-      return false
+      zMax: carPosition.z + 25
     }
 
-    // Check if player car collects coins
-    checkCoinCollections(carPosition) {
-      const carBoundingBox = {
-        xMin: carPosition.x - 40,
-        xMax: carPosition.x + 40,
-        zMin: carPosition.z - 25,
-        zMax: carPosition.z + 25
+    for (let i = 0; i < this.boosters.length; i++) {
+      const booster = this.boosters[i]
+      const boosterBoundingBox = {
+        xMin: booster.mesh.position.x - 15,
+        xMax: booster.mesh.position.x + 15,
+        zMin: booster.mesh.position.z - 15,
+        zMax: booster.mesh.position.z + 15
       }
 
-      let collectedCoins = []
+      // Simple AABB collision detection
+      if (carBoundingBox.xMax > boosterBoundingBox.xMin &&
+        carBoundingBox.xMin < boosterBoundingBox.xMax &&
+        carBoundingBox.zMax > boosterBoundingBox.zMin &&
+        carBoundingBox.zMin < boosterBoundingBox.zMax) {
 
-      for (let i = 0; i < this.coins.length; i++) {
-        const coin = this.coins[i]
-        const coinBoundingBox = {
-          xMin: coin.mesh.position.x - 15,
-          xMax: coin.mesh.position.x + 15,
-          zMin: coin.mesh.position.z - 15,
-          zMax: coin.mesh.position.z + 15
-        }
+        // Remove the booster
+        this.mesh.remove(booster.mesh)
+        this.boosters.splice(i, 1)
 
-        // Simple AABB collision detection
-        if (carBoundingBox.xMax > coinBoundingBox.xMin &&
-          carBoundingBox.xMin < coinBoundingBox.xMax &&
-          carBoundingBox.zMax > coinBoundingBox.zMin &&
-          carBoundingBox.zMin < coinBoundingBox.zMax) {
-
-          // Mark this coin for collection
-          collectedCoins.push(i)
-        }
+        // Return true to indicate a booster was collected
+        return true
       }
-
-      // Remove collected coins (from end to beginning to avoid index issues)
-      for (let i = collectedCoins.length - 1; i >= 0; i--) {
-        const index = collectedCoins[i]
-        const coin = this.coins[index]
-        this.mesh.remove(coin.mesh)
-        this.coins.splice(index, 1)
-      }
-
-      return collectedCoins.length
     }
+
+    return false
   }
+  
+  // Check if player car collides with power-ups
+  checkPowerUpCollisions(carPosition) {
+    const carBoundingBox = {
+      xMin: carPosition.x - 40,
+      xMax: carPosition.x + 40,
+      zMin: carPosition.z - 25,
+      zMax: carPosition.z + 25
+    }
+
+    for (let i = 0; i < this.powerUps.length; i++) {
+      const powerUp = this.powerUps[i]
+      const powerUpBoundingBox = {
+        xMin: powerUp.mesh.position.x - 15,
+        xMax: powerUp.mesh.position.x + 15,
+        zMin: powerUp.mesh.position.z - 15,
+        zMax: powerUp.mesh.position.z + 15
+      }
+
+      // Simple AABB collision detection
+      if (carBoundingBox.xMax > powerUpBoundingBox.xMin &&
+        carBoundingBox.xMin < powerUpBoundingBox.xMax &&
+        carBoundingBox.zMax > powerUpBoundingBox.zMin &&
+        carBoundingBox.zMin < powerUpBoundingBox.zMax) {
+
+        // Get the type before removing
+        const type = powerUp.type
+        
+        // Remove the power-up
+        this.mesh.remove(powerUp.mesh)
+        this.powerUps.splice(i, 1)
+
+        // Return the type of power-up collected
+        return type
+      }
+    }
+
+    return null
+  }
+
+  // Check if player car collects coins, with optional radius multiplier for magnet power-up
+  checkCoinCollections(carPosition, radiusMultiplier = 1) {
+    const carBoundingBox = {
+      xMin: carPosition.x - (40 * radiusMultiplier),
+      xMax: carPosition.x + (40 * radiusMultiplier),
+      zMin: carPosition.z - (25 * radiusMultiplier),
+      zMax: carPosition.z + (25 * radiusMultiplier)
+    }
+
+    let collectedCoins = []
+
+    for (let i = 0; i < this.coins.length; i++) {
+      const coin = this.coins[i]
+      const coinBoundingBox = {
+        xMin: coin.mesh.position.x - 15,
+        xMax: coin.mesh.position.x + 15,
+        zMin: coin.mesh.position.z - 15,
+        zMax: coin.mesh.position.z + 15
+      }
+
+      // Simple AABB collision detection
+      if (carBoundingBox.xMax > coinBoundingBox.xMin &&
+        carBoundingBox.xMin < coinBoundingBox.xMax &&
+        carBoundingBox.zMax > coinBoundingBox.zMin &&
+        carBoundingBox.zMin < coinBoundingBox.zMax) {
+
+        // Mark this coin for collection
+        collectedCoins.push(i)
+      }
+    }
+
+    // Remove collected coins (from end to beginning to avoid index issues)
+    for (let i = collectedCoins.length - 1; i >= 0; i--) {
+      const index = collectedCoins[i]
+      const coin = this.coins[index]
+      this.mesh.remove(coin.mesh)
+      this.coins.splice(index, 1)
+    }
+
+    return collectedCoins.length
+  }
+}

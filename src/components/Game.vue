@@ -265,6 +265,8 @@ export default {
             lights: [],
             sky: null,
             car: null,
+            carPosition: { x: 0, y: 0, z: 0 },
+            speed: 5, // Units per frame            
             highway: null,
 
             // Animation loop
@@ -301,31 +303,31 @@ export default {
 
         // Power-up timers for UI
         boostTimePercent() {
-            if (!this.isBoosting) return 0;
-            const total = this.carBoostDuration;
-            const remaining = this.boostEndTime - Date.now();
-            return (remaining / total) * 100;
+            // Calculate boost time left
+            const boostTimeLeft = this.boostEndTime - Date.now();
+            const boostDuration = this.carBoostDuration;
+            return boostTimeLeft / boostDuration * 100;
         },
 
         shieldTimePercent() {
-            if (!this.isShielded) return 0;
-            const total = 5000; // Shield duration
-            const remaining = this.shieldEndTime - Date.now();
-            return (remaining / total) * 100;
+            // Calculate shield time left
+            const shieldTimeLeft = this.shieldEndTime - Date.now();
+            const shieldDuration = 5000; // Shield duration
+            return shieldTimeLeft / shieldDuration * 100;
         },
 
         magnetTimePercent() {
-            if (!this.hasMagnet) return 0;
-            const total = 8000; // Magnet duration
-            const remaining = this.magnetEndTime - Date.now();
-            return (remaining / total) * 100;
+            // Calculate magnet time left
+            const magnetTimeLeft = this.magnetEndTime - Date.now();
+            const magnetDuration = 8000; // Magnet duration
+            return magnetTimeLeft / magnetDuration * 100;
         },
 
         multiplierTimePercent() {
-            if (!this.hasMultiplier) return 0;
-            const total = 10000; // Multiplier duration
-            const remaining = this.multiplierEndTime - Date.now();
-            return (remaining / total) * 100;
+            // Calculate multiplier time left
+            const multiplierTimeLeft = this.multiplierEndTime - Date.now();
+            const multiplierDuration = 10000; // Multiplier duration
+            return multiplierTimeLeft / multiplierDuration * 100;
         }
     },
 
@@ -351,7 +353,8 @@ export default {
 
         this.updateCamera();
         // Set default car and highway
-        this.car = new Car('balanced');
+        this.car = new Car(); // From Car.js
+        this.scene.add(this.car.mesh);
         this.highway = new Highway();
 
         // Initialize audio manager
@@ -415,7 +418,8 @@ export default {
 
     methods: {
         init() {
-            console.log("Initializing game");
+            this.createRenderer();
+            this.createScene();
         },
 
         createRenderer() {
@@ -822,6 +826,12 @@ export default {
 
         animate() {
             requestAnimationFrame(this.animate);
+            // Update camera to follow car
+            this.cameraPosition.x = this.carPosition.x - 100;
+            this.cameraPosition.y = 50;
+            this.cameraPosition.z = this.carPosition.z;
+            this.updateCamera();
+            // Render
             this.renderer.render(this.scene, this.camera);
         },
         updateGame(deltaTime) {
@@ -829,7 +839,7 @@ export default {
             this.updateCameraPosition();
 
             // Update car position
-            this.updateCarPosition(deltaTime);
+            this.updateCar(deltaTime);
 
             // Update road
             if (this.roadGenerator) {
@@ -854,659 +864,594 @@ export default {
                 console.log("Road segments:", this.roadGenerator?.roadSegments?.length || 0);
             }
         },
+        updateCar(delta) {
+            if (!this.ui || !this.ui.car) return;
+            
+            // Move car forward
+            this.ui.car.position.x += this.gameSpeed * delta * 100;
+            
+            // Handle input for lane changes
+            if (this.keyState.ArrowLeft || this.keyState.KeyA) {
+                // Move left
+                this.targetLaneZ = Math.max(this.carLane - 1, -1) * 100;
+                this.carLane = Math.max(this.carLane - 1, -1);
+            }
+            if (this.keyState.ArrowRight || this.keyState.KeyD) {
+                // Move right
+                this.targetLaneZ = Math.min(this.carLane + 1, 1) * 100;
+                this.carLane = Math.min(this.carLane + 1, 1);
+            }
+            
+            // Smoothly interpolate the car's position toward the target lane
+            const currentZ = this.ui.car.position.z;
+            const targetZ = this.targetLaneZ;
+            const moveStep = this.laneChangeSpeed * delta * 60; 
+            
+            // Calculate new Z position with smooth interpolation
+            let newZ;
+            if (Math.abs(targetZ - currentZ) > moveStep) {
+                newZ = currentZ + (targetZ > currentZ ? moveStep : -moveStep);
+            } else {
+                newZ = targetZ;
+            }
+            
+            // Update car position
+            this.ui.car.position.z = newZ;
+            
+            // Apply visual tilt when turning
+            const tiltAngle = (targetZ - currentZ) * 0.001;
+            this.ui.car.rotation.z += (tiltAngle - this.ui.car.rotation.z) * 0.1;
+        },
+        updateCamera() {
+            this.camera.position.set(this.cameraPosition.x, this.cameraPosition.y, this.cameraPosition.z);
+            this.camera.lookAt(0, 0, 0); // Adjust to car’s actual position if different
+        },
+        handleMouseMove(e) {
+            // Convert mouse position to normalized coordinates (-1 to 1)
+            const tx = -1 + (e.clientX / this.WIDTH) * 2;
+            const ty = 1 - (e.clientY / this.HEIGHT) * 2;
+            this.ui.mouse = { x: tx, y: ty };
+        },
 
-        methods: {
-            updateCamera() {
-                this.camera.position.set(this.cameraPosition.x, this.cameraPosition.y, this.cameraPosition.z);
-                this.camera.lookAt(0, 0, 0); // Adjust to car’s actual position if different
-            },
-            updateCarPosition(deltaTime) {
-                if (!this.ui || !this.ui.car) return;
+        handleKeyDown(event) {
+            if (!this.keyState) this.keyState = {};
 
-                // Move car forward
-                this.ui.car.position.x += this.gameSpeed * deltaTime * 100;
+            // Prevent scrolling with arrow keys
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) {
+                event.preventDefault();
+            }
 
-                // Handle lane changes
-                if (this.carLane !== 1) {
-                    // Gradually move to target lane
-                    const currentZ = this.ui.car.position.z;
-                    const targetZ = (this.carLane - 1) * 100;
-                    const moveStep = 200 * deltaTime; // Speed of lane change
+            // Update key state
+            this.keyState[event.code] = true;
 
-                    if (Math.abs(currentZ - targetZ) > moveStep) {
-                        this.ui.car.position.z += (targetZ > currentZ) ? moveStep : -moveStep;
-                    } else {
-                        this.ui.car.position.z = targetZ;
-                    }
+            // Handle pausing with Escape key
+            if (event.code === 'Escape') {
+                this.togglePause();
+            }
+        },
 
-                    // Tilt the car during lane change
-                    const tiltAngle = (targetZ - currentZ) * 0.001;
-                    this.ui.car.rotation.z = tiltAngle;
-                } else {
-                    // Reset any tilt when in center lane
-                    this.ui.car.rotation.z = 0;
-                }
+        handleKeyUp(event) {
+            if (!this.keyState) this.keyState = {};
+            this.keyState[event.code] = false;
+        },
 
-                // Process keyboard input
-                if (this.keyState.ArrowLeft && this.carLane > 0) {
-                    this.carLane--;
-                    console.log("Moving to lane", this.carLane);
-                }
-                if (this.keyState.ArrowRight && this.carLane < 2) {
-                    this.carLane++;
-                    console.log("Moving to lane", this.carLane);
-                }
+        activateBoost() {
+            if (!this.canBoost || this.isBoosting) return;
 
-                // Handle boosting
-                if (this.keyState.ArrowUp || this.keyState.Space) {
-                    this.activateBoost();
-                }
+            console.log("Activating boost!");
+            this.isBoosting = true;
+            this.canBoost = false;
 
-                // Update car speed
-                const targetSpeed = this.isBoosting ? 5 : 2;
-                this.gameSpeed += (targetSpeed - this.gameSpeed) * deltaTime;
+            // Play boost sound
+            if (this.audioManager) {
+                this.audioManager.playSound('boost');
+            }
 
-                // Update distance traveled
-                this.distanceTraveled += this.gameSpeed * deltaTime;
-            },
+            // Add boost visual effect
+            if (this.effectsManager) {
+                this.effectsManager.createBoostEffect(this.ui.car.position);
+            }
 
-            // Handle keyboard input
-            handleKeyDown(event) {
-                if (!this.keyState) this.keyState = {};
+            // Update the boost end time for UI display
+            this.boostEndTime = Date.now() + this.carBoostDuration;
 
-                // Prevent scrolling with arrow keys
-                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) {
-                    event.preventDefault();
-                }
-
-                // Update key state
-                this.keyState[event.code] = true;
-
-                // Handle pausing with Escape key
-                if (event.code === 'Escape') {
-                    this.togglePause();
-                }
-            },
-
-            handleKeyUp(event) {
-                if (!this.keyState) this.keyState = {};
-                this.keyState[event.code] = false;
-            },
-
-            activateBoost() {
-                if (!this.canBoost || this.isBoosting) return;
-
-                console.log("Activating boost!");
-                this.isBoosting = true;
-                this.canBoost = false;
-
-                // Play boost sound
-                if (this.soundManager) {
-                    this.soundManager.playSound('boost');
-                }
-
-                // Add boost visual effect
-                if (this.effectsManager) {
-                    this.effectsManager.createBoostEffect(this.ui.car.position);
-                }
-
-                // Boost ends after 3 seconds
-                setTimeout(() => {
-                    this.isBoosting = false;
-                    console.log("Boost ended");
-
-                    // Cooldown before next boost
-                    setTimeout(() => {
-                        this.canBoost = true;
-                        console.log("Boost ready");
-                    }, 5000);
-                }, 3000);
-            },
-
-            handleMouseMove(e) {
-                // Convert mouse position to normalized coordinates (-1 to 1)
-                const tx = -1 + (e.clientX / this.WIDTH) * 2;
-                const ty = 1 - (e.clientY / this.HEIGHT) * 2;
-                this.ui.mouse = { x: tx, y: ty };
-            },
-
-            handleKeyDown(e) {
-                // Track key state
-                if (e.code in this.keyState) {
-                    this.keyState[e.code] = true;
-                }
-
-                // Handle pause toggle with Escape key
-                if (e.code === 'Escape' && this.gameStarted) {
-                    e.preventDefault();
-                    this.pauseGame();
-                }
-
-                // Handle boost with Space key
-                if (e.code === 'Space' && this.gameStarted && !this.gamePaused && !this.gameOver) {
-                    e.preventDefault(); // Prevent scrolling
-                    this.activateBoost();
-                }
-
-                // Start game with Enter key on start screen
-                if (e.code === 'Enter' && !this.gameStarted && !this.gameOver) {
-                    this.gameStarted = true;
-                }
-
-                // Restart with R key when game over
-                if (e.code === 'KeyR' && this.gameOver) {
-                    this.restartGame();
-                }
-            },
-
-            handleKeyUp(e) {
-                // Track key state
-                if (e.code in this.keyState) {
-                    this.keyState[e.code] = false;
-                }
-            },
-
-            handleResize() {
-                // Update size values
-                this.WIDTH = window.innerWidth;
-                this.HEIGHT = window.innerHeight;
-
-                // Update camera aspect ratio
-                if (this.camera) {
-                    this.camera.aspect = this.WIDTH / this.HEIGHT;
-                    this.camera.updateProjectionMatrix();
-                }
-
-                // Update renderer size
-                if (this.renderer) {
-                    this.renderer.setSize(this.WIDTH, this.HEIGHT);
-                }
-            },
-
-            // Mobile controls handlers
-            onMoveLeft() {
-                if (this.carLane > 0) {
-                    this.carLane--;
-                    console.log("Moving to lane", this.carLane);
-                }
-            },
-
-            onMoveRight() {
-                if (this.carLane < 2) {
-                    this.carLane++;
-                    console.log("Moving to lane", this.carLane);
-                }
-            },
-
-            onStopMoving() {
-                // Nothing to do here for this game
-            },
-
-            onActivateBoost() {
-                this.activateBoost();
-            },
-
-            pauseGame() {
-                if (this.gameStarted && !this.gameOver) {
-                    this.gamePaused = !this.gamePaused;
-
-                    if (this.gamePaused) {
-                        // Pause engine sound
-                        this.audioManager.stop('engine');
-                    } else {
-                        // Resume engine sound
-                        this.audioManager.play('engine');
-                    }
-                }
-            },
-
-            resumeGame() {
-                this.gamePaused = false;
-                this.audioManager.play('engine');
-                if (this.$el && typeof this.$el.focus === 'function') {
-                    this.$el.focus();
-                }
-            },
-
-            goToMainMenu() {
-                this.gameStarted = false;
-                this.gameOver = false;
-                this.gamePaused = false;
-                this.audioManager.stop('engine');
-            },
-
-            restartGame() {
-                // Reset car to selected type
-                if (this.selectedCar) {
-                    this.car = new Car(this.carType);
-                } else {
-                    this.car = new Car('balanced');
-                }
-
-                // Reset game state
-                this.gameOver = false;
-                this.score = 0;
-                this.coins = 0;
-                this.gameSpeed = 2;
-                this.distanceTraveled = 0;
-                this.difficultyLevel = 1;
-
-                // Reset power-up states
+            // Boost ends after duration
+            setTimeout(() => {
                 this.isBoosting = false;
-                this.isShielded = false;
-                this.hasMagnet = false;
-                this.hasMultiplier = false;
-                this.scoreMultiplier = 1;
-                this.canBoost = true;
+                console.log("Boost ended");
 
-                // Reset car position
-                this.carLane = 1;
-                this.targetLaneZ = 0;
-                this.ui.car.position.z = 0;
+                // Cooldown before next boost
+                setTimeout(() => {
+                    this.canBoost = true;
+                    console.log("Boost ready");
+                }, 5000);
+            }, this.carBoostDuration);
+        },
 
-                // Reset obstacles and coins
-                if (this.highway) {
-                    this.highway.obstacles.forEach(obstacle => {
-                        this.highway.mesh.remove(obstacle.mesh);
-                    });
-                    this.highway.obstacles = [];
+        // Mobile controls handlers
+        onMoveLeft() {
+            if (this.carLane > 0) {
+                this.carLane--;
+                console.log("Moving to lane", this.carLane);
+            }
+        },
 
-                    this.highway.coins.forEach(coin => {
-                        this.highway.mesh.remove(coin.mesh);
-                    });
-                    this.highway.coins = [];
+        onMoveRight() {
+            if (this.carLane < 2) {
+                this.carLane++;
+                console.log("Moving to lane", this.carLane);
+            }
+        },
 
-                    this.highway.powerUps.forEach(powerUp => {
-                        this.highway.mesh.remove(powerUp.mesh);
-                    });
-                    this.highway.powerUps = [];
-                }
+        onStopMoving() {
+            // Nothing to do here for this game
+        },
 
-                // Reset timestamps
-                this.lastObstacleTime = Date.now();
-                this.lastCoinTime = Date.now();
-                this.lastPowerUpTime = Date.now();
-                this.lastEnvironmentChangeTime = Date.now();
+        onActivateBoost() {
+            this.activateBoost();
+        },
 
-                // Reset to day environment
-                this.setEnvironment('Day');
-
-                // Play engine sound
-                this.audioManager.play('engine');
-
-                // Focus the game area
-                if (this.$el && typeof this.$el.focus === 'function') {
-                    this.$el.focus();
-                }
-            },
-
-            endGame() {
-                this.gameOver = true;
-                this.audioManager.stop('engine');
-                this.audioManager.play('crash');
-
-                // Update high score if needed
-                if (this.score > this.highScore) {
-                    this.highScore = this.score;
-                    localStorage.setItem('carRacerHighScore', this.score);
-                }
-            },
-
-            toggleSound() {
-                if (this.audioManager) {
-                    const muted = this.audioManager.toggleMute();
-                    if (!muted && this.gameStarted && !this.gamePaused) {
-                        this.audioManager.play('engine');
-                    }
-                }
-            },
-
-            updateCollectibles(deltaTime) {
-                if (!this.collectibles || !this.ui || !this.ui.car) return;
-
-                // Move existing collectibles
-                for (let i = this.collectibles.length - 1; i >= 0; i--) {
-                    const collectible = this.collectibles[i];
-                    collectible.position.x -= this.gameSpeed * deltaTime * 100;
-
-                    // Check if the collectible is passed (behind the car)
-                    if (collectible.position.x < this.ui.car.position.x - 200) {
-                        // Remove from scene and array
-                        if (collectible.mesh && this.scene) {
-                            this.scene.remove(collectible.mesh);
-                        }
-                        this.collectibles.splice(i, 1);
-                        continue;
-                    }
-
-                    // Check for collision
-                    if (this.checkCollision(this.ui.car.position, collectible.position, 30)) {
-                        // Collect it
-                        this.coins++;
-                        this.score += 10 * this.scoreMultiplier;
-
-                        // Play sound effect
-                        if (this.soundManager) {
-                            this.soundManager.playSound('coin');
-                        }
-
-                        // Add visual effect
-                        if (this.effectsManager) {
-                            this.effectsManager.createCoinEffect(collectible.position);
-                        }
-
-                        // Remove from scene and array
-                        if (collectible.mesh && this.scene) {
-                            this.scene.remove(collectible.mesh);
-                        }
-                        this.collectibles.splice(i, 1);
-                    }
-                }
-
-                // Spawn new collectibles
-                if (Math.random() < 0.02) {
-                    this.spawnCollectible();
-                }
-            },
-
-            spawnCollectible() {
-                if (!this.scene) return;
-
-                // Create a coin mesh
-                const geometry = new THREE.CylinderGeometry(15, 15, 5, 32);
-                const material = new THREE.MeshStandardMaterial({
-                    color: 0xFFD700,
-                    metalness: 1,
-                    roughness: 0.3,
-                    emissive: 0xFFD700,
-                    emissiveIntensity: 0.2
-                });
-                const coinMesh = new THREE.Mesh(geometry, material);
-
-                // Set rotation to face forward
-                coinMesh.rotation.x = Math.PI / 2;
-
-                // Position in front of car in one of three lanes
-                const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
-                const z = lane * 100;
-                const x = this.ui.car.position.x + 1000 + Math.random() * 500;
-                const y = 35;
-
-                coinMesh.position.set(x, y, z);
-
-                // Add to scene
-                this.scene.add(coinMesh);
-
-                // Add to collectibles array
-                this.collectibles.push({
-                    mesh: coinMesh,
-                    position: coinMesh.position,
-                    type: 'coin'
-                });
-            },
-
-            updateObstacles(deltaTime) {
-                if (!this.obstacles || !this.ui || !this.ui.car) return;
-
-                // Move existing obstacles
-                for (let i = this.obstacles.length - 1; i >= 0; i--) {
-                    const obstacle = this.obstacles[i];
-                    obstacle.position.x -= this.gameSpeed * deltaTime * 100;
-
-                    // Check if the obstacle is passed (behind the car)
-                    if (obstacle.position.x < this.ui.car.position.x - 200) {
-                        // Remove from scene and array
-                        if (obstacle.mesh && this.scene) {
-                            this.scene.remove(obstacle.mesh);
-                        }
-                        this.obstacles.splice(i, 1);
-                        continue;
-                    }
-
-                    // Check for collision
-                    if (!this.isShielded && this.checkCollision(this.ui.car.position, obstacle.position, 50)) {
-                        // Handle crash
-                        this.handleCrash();
-                        break;
-                    }
-                }
-
-                // Spawn new obstacles
-                if (Math.random() < 0.005 + (this.gameSpeed * 0.001)) {
-                    this.spawnObstacle();
-                }
-            },
-
-            spawnObstacle() {
-                if (!this.scene) return;
-
-                // Create an obstacle mesh (simple box for now)
-                const geometry = new THREE.BoxGeometry(40, 30, 80);
-                const material = new THREE.MeshStandardMaterial({
-                    color: Math.random() > 0.5 ? 0x333333 : 0x990000,
-                    metalness: 0.5,
-                    roughness: 0.7,
-                });
-                const obstacleMesh = new THREE.Mesh(geometry, material);
-
-                // Position in front of car in one of three lanes
-                const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
-                const z = lane * 100;
-                const x = this.ui.car.position.x + 1000 + Math.random() * 500;
-                const y = 35;
-
-                obstacleMesh.position.set(x, y, z);
-
-                // Add to scene
-                this.scene.add(obstacleMesh);
-
-                // Add to obstacles array
-                this.obstacles.push({
-                    mesh: obstacleMesh,
-                    position: obstacleMesh.position,
-                    type: 'car'
-                });
-            },
-
-            updatePowerUps(deltaTime) {
-                // Check if boost is active
-                if (this.isBoosting) {
-                    // Create boost trail effect
-                    if (this.effectsManager && this.frame % 5 === 0) {
-                        this.effectsManager.createBoostTrail(this.ui.car.position);
-                    }
-                }
-
-                // Handle shield timer
-                if (this.isShielded) {
-                    // Count down shield time
-                    this.shieldTime -= deltaTime;
-                    if (this.shieldTime <= 0) {
-                        this.isShielded = false;
-                    }
-                }
-
-                // Handle multiplier timer
-                if (this.hasMultiplier) {
-                    // Count down multiplier time
-                    this.multiplierTime -= deltaTime;
-                    if (this.multiplierTime <= 0) {
-                        this.hasMultiplier = false;
-                        this.scoreMultiplier = 1;
-                    }
-                }
-
-                // Handle magnet timer
-                if (this.hasMagnet) {
-                    // Count down magnet time
-                    this.magnetTime -= deltaTime;
-                    if (this.magnetTime <= 0) {
-                        this.hasMagnet = false;
-                    }
-
-                    // Magnet pulls in coins
-                    if (this.collectibles) {
-                        this.collectibles.forEach(collectible => {
-                            if (collectible.type === 'coin') {
-                                const distance = this.distance(this.ui.car.position, collectible.position);
-                                if (distance < 200) {
-                                    // Pull the coin towards the car
-                                    const direction = new THREE.Vector3();
-                                    direction.subVectors(this.ui.car.position, collectible.position);
-                                    direction.normalize();
-                                    direction.multiplyScalar(200 * deltaTime);
-                                    collectible.position.add(direction);
-                                }
-                            }
-                        });
-                    }
-                }
-
-                // Spawn power-ups
-                if (Math.random() < 0.001) {
-                    this.spawnPowerUp();
-                }
-            },
-
-            spawnPowerUp() {
-                if (!this.scene) return;
-
-                // Determine power-up type
-                const types = ['boost', 'shield', 'magnet', 'multiplier'];
-                const type = types[Math.floor(Math.random() * types.length)];
-                let color;
-
-                switch (type) {
-                    case 'boost':
-                        color = 0xff5500; // Orange
-                        break;
-                    case 'shield':
-                        color = 0x00aaff; // Blue
-                        break;
-                    case 'magnet':
-                        color = 0xffaa00; // Amber
-                        break;
-                    case 'multiplier':
-                        color = 0x00ff00; // Green
-                        break;
-                }
-
-                // Create a power-up mesh
-                const geometry = new THREE.BoxGeometry(20, 20, 20);
-                const material = new THREE.MeshStandardMaterial({
-                    color: color,
-                    metalness: 0.8,
-                    roughness: 0.2,
-                    emissive: color,
-                    emissiveIntensity: 0.5
-                });
-                const powerUpMesh = new THREE.Mesh(geometry, material);
-
-                // Position in front of car in one of three lanes
-                const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
-                const z = lane * 100;
-                const x = this.ui.car.position.x + 1000 + Math.random() * 500;
-                const y = 35;
-
-                powerUpMesh.position.set(x, y, z);
-
-                // Add rotation animation
-                powerUpMesh.userData.rotationSpeed = 0.02;
-                powerUpMesh.userData.animate = true;
-
-                // Add to scene
-                this.scene.add(powerUpMesh);
-
-                // Add to collectibles array
-                this.collectibles.push({
-                    mesh: powerUpMesh,
-                    position: powerUpMesh.position,
-                    type: type
-                });
-            },
-
-            updateScore(deltaTime) {
-                // Increase score based on distance traveled
-                this.score += Math.floor(this.gameSpeed * deltaTime * 10) * this.scoreMultiplier;
-
-                // Update high score if needed
-                if (this.score > this.highScore) {
-                    this.highScore = this.score;
-                    // Save to local storage
-                    try {
-                        localStorage.setItem('carRacer_highScore', this.highScore);
-                    } catch (e) {
-                        console.error("Could not save high score:", e);
-                    }
-                }
-            },
-
-            handleCrash() {
-                if (this.isShielded) {
-                    // Shield absorbs the crash
-                    this.isShielded = false;
-                    // Play shield break sound
-                    if (this.soundManager) {
-                        this.soundManager.playSound('shield');
-                    }
-                    return;
-                }
-
-                // Game over
-                this.gameOver = true;
-
-                // Play crash sound
-                if (this.soundManager) {
-                    this.soundManager.playSound('crash');
-                }
-
-                // Create explosion effect
-                if (this.effectsManager) {
-                    this.effectsManager.createExplosionEffect(this.ui.car.position);
-                }
-
-                console.log("Game over! Final score:", this.score);
-            },
-
-            restartGame() {
-                // Reset game state
-                this.gameOver = false;
-                this.score = 0;
-                this.startGame();
-            },
-
-            exitGame() {
-                // Return to car selection
-                this.gameStarted = false;
-                this.gameOver = false;
-
-                // Clean up
-                this.clearGameObjects();
-            },
-
-            togglePause() {
+        pauseGame() {
+            if (this.gameStarted && !this.gameOver) {
                 this.gamePaused = !this.gamePaused;
-            },
 
-            resumeGame() {
-                this.gamePaused = false;
-                this.lastUpdateTime = Date.now(); // Reset time to avoid jump
-            },
+                if (this.gamePaused) {
+                    // Pause engine sound
+                    this.audioManager.stop('engine');
+                } else {
+                    // Resume engine sound
+                    this.audioManager.play('engine');
+                }
+            }
+        },
 
-            // Helper functions
-            checkCollision(pos1, pos2, threshold) {
-                return this.distance(pos1, pos2) < threshold;
-            },
+        resumeGame() {
+            this.gamePaused = false;
+            this.audioManager.play('engine');
+            if (this.$el && typeof this.$el.focus === 'function') {
+                this.$el.focus();
+            }
+        },
 
-            distance(pos1, pos2) {
-                return Math.sqrt(
-                    Math.pow(pos1.x - pos2.x, 2) +
-                    Math.pow(pos1.y - pos2.y, 2) +
-                    Math.pow(pos1.z - pos2.z, 2)
-                );
-            },
-        }
-    };
+        goToMainMenu() {
+            this.gameStarted = false;
+            this.gameOver = false;
+            this.gamePaused = false;
+            this.audioManager.stop('engine');
+        },
+
+        restartGame() {
+            // Reset car to selected type
+            if (this.selectedCar) {
+                this.car = new Car(this.carType);
+            } else {
+                this.car = new Car('balanced');
+            }
+
+            // Reset game state
+            this.gameOver = false;
+            this.score = 0;
+            this.coins = 0;
+            this.gameSpeed = 2;
+            this.distanceTraveled = 0;
+            this.difficultyLevel = 1;
+
+            // Reset power-up states
+            this.isBoosting = false;
+            this.isShielded = false;
+            this.hasMagnet = false;
+            this.hasMultiplier = false;
+            this.scoreMultiplier = 1;
+            this.canBoost = true;
+
+            // Reset car position
+            this.carLane = 1;
+            this.targetLaneZ = 0;
+            this.ui.car.position.z = 0;
+
+            // Reset obstacles and coins
+            if (this.highway) {
+                this.highway.obstacles.forEach(obstacle => {
+                    this.highway.mesh.remove(obstacle.mesh);
+                });
+                this.highway.obstacles = [];
+
+                this.highway.coins.forEach(coin => {
+                    this.highway.mesh.remove(coin.mesh);
+                });
+                this.highway.coins = [];
+
+                this.highway.powerUps.forEach(powerUp => {
+                    this.highway.mesh.remove(powerUp.mesh);
+                });
+                this.highway.powerUps = [];
+            }
+
+            // Reset timestamps
+            this.lastObstacleTime = Date.now();
+            this.lastCoinTime = Date.now();
+            this.lastPowerUpTime = Date.now();
+            this.lastEnvironmentChangeTime = Date.now();
+
+            // Reset to day environment
+            this.setEnvironment('Day');
+
+            // Play engine sound
+            this.audioManager.play('engine');
+
+            // Focus the game area
+            if (this.$el && typeof this.$el.focus === 'function') {
+                this.$el.focus();
+            }
+        },
+
+        endGame() {
+            this.gameOver = true;
+            this.audioManager.stop('engine');
+            this.audioManager.play('crash');
+
+            // Update high score if needed
+            if (this.score > this.highScore) {
+                this.highScore = this.score;
+                localStorage.setItem('carRacerHighScore', this.score);
+            }
+        },
+
+        toggleSound() {
+            if (this.audioManager) {
+                const muted = this.audioManager.toggleMute();
+                if (!muted && this.gameStarted && !this.gamePaused) {
+                    this.audioManager.play('engine');
+                }
+            }
+        },
+
+        updateCollectibles(deltaTime) {
+            if (!this.collectibles || !this.ui || !this.ui.car) return;
+
+            // Move existing collectibles
+            for (let i = this.collectibles.length - 1; i >= 0; i--) {
+                const collectible = this.collectibles[i];
+                collectible.position.x -= this.gameSpeed * deltaTime * 100;
+
+                // Check if the collectible is passed (behind the car)
+                if (collectible.position.x < this.ui.car.position.x - 200) {
+                    // Remove from scene and array
+                    if (collectible.mesh && this.scene) {
+                        this.scene.remove(collectible.mesh);
+                    }
+                    this.collectibles.splice(i, 1);
+                    continue;
+                }
+
+                // Check for collision
+                if (this.checkCollision(this.ui.car.position, collectible.position, 30)) {
+                    // Collect it
+                    this.coins++;
+                    this.score += 10 * this.scoreMultiplier;
+
+                    // Play sound effect
+                    if (this.soundManager) {
+                        this.soundManager.playSound('coin');
+                    }
+
+                    // Add visual effect
+                    if (this.effectsManager) {
+                        this.effectsManager.createCoinEffect(collectible.position);
+                    }
+
+                    // Remove from scene and array
+                    if (collectible.mesh && this.scene) {
+                        this.scene.remove(collectible.mesh);
+                    }
+                    this.collectibles.splice(i, 1);
+                }
+            }
+
+            // Spawn new collectibles
+            if (Math.random() < 0.02) {
+                this.spawnCollectible();
+            }
+        },
+
+        spawnCollectible() {
+            if (!this.scene) return;
+
+            // Create a coin mesh
+            const geometry = new THREE.CylinderGeometry(15, 15, 5, 32);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xFFD700,
+                metalness: 1,
+                roughness: 0.3,
+                emissive: 0xFFD700,
+                emissiveIntensity: 0.2
+            });
+            const coinMesh = new THREE.Mesh(geometry, material);
+
+            // Set rotation to face forward
+            coinMesh.rotation.x = Math.PI / 2;
+
+            // Position in front of car in one of three lanes
+            const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+            const z = lane * 100;
+            const x = this.ui.car.position.x + 1000 + Math.random() * 500;
+            const y = 35;
+
+            coinMesh.position.set(x, y, z);
+
+            // Add to scene
+            this.scene.add(coinMesh);
+
+            // Add to collectibles array
+            this.collectibles.push({
+                mesh: coinMesh,
+                position: coinMesh.position,
+                type: 'coin'
+            });
+        },
+
+        updateObstacles(deltaTime) {
+            if (!this.obstacles || !this.ui || !this.ui.car) return;
+
+            // Move existing obstacles
+            for (let i = this.obstacles.length - 1; i >= 0; i--) {
+                const obstacle = this.obstacles[i];
+                obstacle.position.x -= this.gameSpeed * deltaTime * 100;
+
+                // Check if the obstacle is passed (behind the car)
+                if (obstacle.position.x < this.ui.car.position.x - 200) {
+                    // Remove from scene and array
+                    if (obstacle.mesh && this.scene) {
+                        this.scene.remove(obstacle.mesh);
+                    }
+                    this.obstacles.splice(i, 1);
+                    continue;
+                }
+
+                // Check for collision
+                if (!this.isShielded && this.checkCollision(this.ui.car.position, obstacle.position, 50)) {
+                    // Handle crash
+                    this.handleCrash();
+                    break;
+                }
+            }
+
+            // Spawn new obstacles
+            if (Math.random() < 0.005 + (this.gameSpeed * 0.001)) {
+                this.spawnObstacle();
+            }
+        },
+
+        spawnObstacle() {
+            if (!this.scene) return;
+
+            // Create an obstacle mesh (simple box for now)
+            const geometry = new THREE.BoxGeometry(40, 30, 80);
+            const material = new THREE.MeshStandardMaterial({
+                color: Math.random() > 0.5 ? 0x333333 : 0x990000,
+                metalness: 0.5,
+                roughness: 0.7,
+            });
+            const obstacleMesh = new THREE.Mesh(geometry, material);
+
+            // Position in front of car in one of three lanes
+            const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+            const z = lane * 100;
+            const x = this.ui.car.position.x + 1000 + Math.random() * 500;
+            const y = 35;
+
+            obstacleMesh.position.set(x, y, z);
+
+            // Add to scene
+            this.scene.add(obstacleMesh);
+
+            // Add to obstacles array
+            this.obstacles.push({
+                mesh: obstacleMesh,
+                position: obstacleMesh.position,
+                type: 'car'
+            });
+        },
+
+        updatePowerUps(deltaTime) {
+            // Check if boost is active
+            if (this.isBoosting) {
+                // Create boost trail effect
+                if (this.effectsManager && this.frame % 5 === 0) {
+                    this.effectsManager.createBoostTrail(this.ui.car.position);
+                }
+            }
+
+            // Handle shield timer
+            if (this.isShielded) {
+                // Count down shield time
+                this.shieldTime -= deltaTime;
+                if (this.shieldTime <= 0) {
+                    this.isShielded = false;
+                }
+            }
+
+            // Handle multiplier timer
+            if (this.hasMultiplier) {
+                // Count down multiplier time
+                this.multiplierTime -= deltaTime;
+                if (this.multiplierTime <= 0) {
+                    this.hasMultiplier = false;
+                    this.scoreMultiplier = 1;
+                }
+            }
+
+            // Handle magnet timer
+            if (this.hasMagnet) {
+                // Count down magnet time
+                this.magnetTime -= deltaTime;
+                if (this.magnetTime <= 0) {
+                    this.hasMagnet = false;
+                }
+
+                // Magnet pulls in coins
+                if (this.collectibles) {
+                    this.collectibles.forEach(collectible => {
+                        if (collectible.type === 'coin') {
+                            const distance = this.distance(this.ui.car.position, collectible.position);
+                            if (distance < 200) {
+                                // Pull the coin towards the car
+                                const direction = new THREE.Vector3();
+                                direction.subVectors(this.ui.car.position, collectible.position);
+                                direction.normalize();
+                                direction.multiplyScalar(200 * deltaTime);
+                                collectible.position.add(direction);
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Spawn power-ups
+            if (Math.random() < 0.001) {
+                this.spawnPowerUp();
+            }
+        },
+
+        spawnPowerUp() {
+            if (!this.scene) return;
+            const powerUp = this.powerUpPool.createPowerUp('boost', 1, 500); // Lane 1 (middle, 0-based index)
+            // Determine power-up type
+            const types = ['boost', 'shield', 'magnet', 'multiplier'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            let color;
+
+            switch (type) {
+                case 'boost':
+                    color = 0xff5500; // Orange
+                    break;
+                case 'shield':
+                    color = 0x00aaff; // Blue
+                    break;
+                case 'magnet':
+                    color = 0xffaa00; // Amber
+                    break;
+                case 'multiplier':
+                    color = 0x00ff00; // Green
+                    break;
+            }
+
+            // Create a power-up mesh
+            const geometry = new THREE.BoxGeometry(20, 20, 20);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                metalness: 0.8,
+                roughness: 0.2,
+                emissive: color,
+                emissiveIntensity: 0.5
+            });
+            const powerUpMesh = new THREE.Mesh(geometry, material);
+
+            // Position in front of car in one of three lanes
+            const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+            const z = lane * 100;
+            const x = this.ui.car.position.x + 1000 + Math.random() * 500;
+            const y = 35;
+
+            powerUpMesh.position.set(x, y, z);
+
+            // Add rotation animation
+            powerUpMesh.userData.rotationSpeed = 0.02;
+            powerUpMesh.userData.animate = true;
+
+            // Add to scene
+            this.scene.add(powerUpMesh);
+
+            // Add to collectibles array
+            this.collectibles.push({
+                mesh: powerUpMesh,
+                position: powerUpMesh.position,
+                type: type
+            });
+        },
+
+        updateScore(deltaTime) {
+            // Increase score based on distance traveled
+            this.score += Math.floor(this.gameSpeed * deltaTime * 10) * this.scoreMultiplier;
+
+            // Update high score if needed
+            if (this.score > this.highScore) {
+                this.highScore = this.score;
+                // Save to local storage
+                try {
+                    localStorage.setItem('carRacer_highScore', this.highScore);
+                } catch (e) {
+                    console.error("Could not save high score:", e);
+                }
+            }
+        },
+
+        handleCrash() {
+            if (this.isShielded) {
+                // Shield absorbs the crash
+                this.isShielded = false;
+                // Play shield break sound
+                if (this.soundManager) {
+                    this.soundManager.playSound('shield');
+                }
+                return;
+            }
+
+            // Game over
+            this.gameOver = true;
+
+            // Play crash sound
+            if (this.soundManager) {
+                this.soundManager.playSound('crash');
+            }
+
+            // Create explosion effect
+            if (this.effectsManager) {
+                this.effectsManager.createExplosionEffect(this.ui.car.position);
+            }
+
+            console.log("Game over! Final score:", this.score);
+        },
+
+        restartGame() {
+            // Reset game state
+            this.gameOver = false;
+            this.score = 0;
+            this.startGame();
+        },
+
+        exitGame() {
+            // Return to car selection
+            this.gameStarted = false;
+            this.gameOver = false;
+
+            // Clean up
+            this.clearGameObjects();
+        },
+
+        togglePause() {
+            this.gamePaused = !this.gamePaused;
+        },
+
+        resumeGame() {
+            this.gamePaused = false;
+            this.lastUpdateTime = Date.now(); // Reset time to avoid jump
+        },
+
+        // Helper functions
+        checkCollision(pos1, pos2, threshold) {
+            return this.distance(pos1, pos2) < threshold;
+        },
+
+        distance(pos1, pos2) {
+            return Math.sqrt(
+                Math.pow(pos1.x - pos2.x, 2) +
+                Math.pow(pos1.y - pos2.y, 2) +
+                Math.pow(pos1.z - pos2.z, 2)
+            );
+        },
+    }
+};
 </script>
 
 <style scoped>

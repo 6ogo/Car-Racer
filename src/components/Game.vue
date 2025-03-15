@@ -529,80 +529,255 @@ export default {
 
         onCarSelected(carData) {
             console.log("Car selected:", carData);
-            
-            // Store selected car data
             this.selectedCar = carData;
-            this.carType = carData.modelType;
-            this.carBoostDuration = carData.boostDuration || 3000;
-            this.carBoostMultiplier = carData.boostMultiplier || 1.5;
-            this.carTurnSpeed = carData.turnSpeed || 1.0;
-            this.carCoinRadius = carData.coinCollectionRadius || 1.0;
-            this.obstacleImmunity = carData.obstacleImmunity || false;
-            this.immunityRefreshTime = carData.immunityRefreshTime || 15000;
-            this.offRoadBonus = carData.offRoadBonus || false;
+            this.showCarSelection = false;
+            this.showLoading = true;
             
-            // Load the car model
-            this.loadCarModel(carData.modelFile, carData.color);
-
-            // Start the game
-            this.startGame();
-        },
-
-        loadCarModel(modelFile, colorHex) {
-            console.log(`Loading car model: ${modelFile} with color ${colorHex}`);
-            
-            // Remove existing model if any
-            if (this.carModel) {
-                this.scene.remove(this.carModel);
-                this.carModel = null;
+            // Save car information
+            if (carData && carData.modelType) {
+                console.log(`Loading car model: ${carData.modelType} with color ${carData.color}`);
+                this.loadCarModel(carData.modelType, carData.color, () => {
+                    this.showLoading = false;
+                    // Give time for the car model to load completely
+                    setTimeout(() => {
+                        // Initialize the road and ensure the scene is ready before starting the game
+                        this.initializeRoad();
+                        this.startGame();
+                    }, 500);
+                });
+            } else {
+                console.error("Invalid car data received");
+                this.showLoading = false;
             }
-
-            // Convert hex color string to integer
-            const colorInt = typeof colorHex === 'string' ? parseInt(colorHex.replace('#', '0x')) : colorHex;
-
-            // Load the car model
+        },
+        
+        loadCarModel(modelType, color, callback) {
+            console.log("Loading car model:", modelType);
+            if (!modelType) {
+                console.error("No model type specified for loading car model");
+                return;
+            }
+            
+            if (!this.vehicleLoader) {
+                console.log("Creating vehicle loader");
+                this.vehicleLoader = new VehicleLoader();
+            }
+            
             this.vehicleLoader.loadVehicle(
-                modelFile,
+                modelType,
                 (model) => {
                     console.log("Car model loaded successfully");
-                    // Store reference to model
+                    
+                    // Store the car model reference
                     this.carModel = model;
-
-                    // Apply color
-                    this.vehicleLoader.setVehicleColor(model, colorInt);
-
-                    // Prepare for animation
-                    this.vehicleLoader.prepareForAnimation(model);
-
-                    // Position at starting point - slightly elevated to avoid immediate collisions
-                    model.position.set(0, 35, 0);
                     
-                    // Make sure the car is properly oriented
-                    model.rotation.set(0, 0, 0);
-
+                    // Apply color to the body parts
+                    const colorHex = parseInt(color.replace('#', '0x'));
+                    
+                    // Apply different materials to different parts
+                    model.traverse(child => {
+                        if (child.isMesh) {
+                            const name = child.name.toLowerCase();
+                            
+                            // Make wheels black
+                            if (name.includes('wheel') || name.includes('tire')) {
+                                const blackMaterial = new THREE.MeshStandardMaterial({
+                                    color: 0x222222,
+                                    roughness: 0.7,
+                                    metalness: 0.5
+                                });
+                                child.material = blackMaterial;
+                            }
+                            // Make windows a translucent blue-black
+                            else if (name.includes('window') || name.includes('glass') || name.includes('windshield')) {
+                                const glassMaterial = new THREE.MeshPhysicalMaterial({
+                                    color: 0x111a2b,
+                                    roughness: 0.1,
+                                    metalness: 0.9,
+                                    transparent: true,
+                                    opacity: 0.7,
+                                    envMapIntensity: 1
+                                });
+                                child.material = glassMaterial;
+                            }
+                            // Apply car color to body parts
+                            else {
+                                this.vehicleLoader.setVehicleColor(child, colorHex);
+                            }
+                        }
+                    });
+                    
                     // Add to scene
-                    this.scene.add(model);
-
-                    // Update UI reference to the car model
-                    this.ui.car = model;
+                    if (this.scene) {
+                        this.scene.add(model);
+                        console.log("Car model added to scene");
+                        
+                        // Position the car correctly
+                        model.position.set(0, 35, 0);
+                        
+                        // Make sure car is visible
+                        model.visible = true;
+                        
+                        // Store in UI object for easier reference
+                        if (!this.ui) this.ui = {};
+                        this.ui.car = model;
+                        console.log("Car model added to scene and UI updated");
+                    } else {
+                        console.error("Scene not available when adding car model");
+                    }
                     
-                    // Log success
-                    console.log("Car model added to scene and UI updated");
+                    if (callback) callback();
                 },
                 (xhr) => {
-                    console.log(`${xhr.loaded / xhr.total * 100}% loaded`);
+                    if (xhr.lengthComputable) {
+                        const percentage = (xhr.loaded / xhr.total * 100);
+                        console.log(`${percentage.toFixed(0)}% loaded`);
+                    } else {
+                        console.log(`${xhr.loaded} bytes loaded`);
+                    }
                 },
                 (error) => {
-                    console.error('Error loading car model:', error);
-
-                    // Fallback to geometric car if model fails to load
-                    console.log("Using fallback car model");
-                    this.car = new Car(this.carType);
-                    this.ui.car = this.car.mesh;
-                    this.ui.car.position.set(0, 35, 0);
-                    this.scene.add(this.ui.car);
+                    console.error("Error loading car model:", error);
+                    // Try to load a fallback model
+                    if (modelType !== 'sedan') {
+                        console.log("Attempting to load fallback model: sedan");
+                        this.loadCarModel('sedan', '#f25346', callback);
+                    } else if (callback) {
+                        callback();
+                    }
                 }
             );
+        },
+
+        initializeRoad() {
+            console.log("Initializing road");
+            // Create road generator if it doesn't exist
+            if (!this.roadGenerator) {
+                console.log("Creating new road generator");
+                this.roadGenerator = new RoadGenerator(this.scene);
+            } else {
+                // Reset road generator
+                console.log("Resetting existing road generator");
+                this.roadGenerator.reset();
+                this.roadGenerator.initRoad();
+            }
+            
+            // Make sure the initial road segments are generated
+            if (this.roadGenerator.roadSegments.length === 0) {
+                console.log("No road segments found, initializing road");
+                this.roadGenerator.initRoad();
+            }
+            
+            console.log(`Road initialized with ${this.roadGenerator.roadSegments.length} segments`);
+        },
+        
+        startGame() {
+            console.log("Starting game");
+            this.gameStarted = true;
+            this.gameOver = false;
+            this.gamePaused = false;
+
+            // Initialize or reset game state
+            this.score = 0;
+            this.coins = 0;
+            this.gameSpeed = 2;
+            this.distanceTraveled = 0;
+            this.carLane = 1;
+            this.targetLaneZ = 0;
+            
+            // Make sure road has been initialized
+            if (!this.roadGenerator || this.roadGenerator.roadSegments.length === 0) {
+                console.log("Road not initialized, initializing now");
+                this.initializeRoad();
+            }
+            
+            // Ensure the car is properly positioned and visible
+            if (this.ui && this.ui.car && typeof this.ui.car.position.set === 'function') {
+                this.ui.car.position.set(0, 35, 0);
+                this.ui.car.rotation.set(0, 0, 0);
+                this.ui.car.visible = true;
+                console.log("Car position reset and set to visible");
+            } else if (this.carModel && typeof this.carModel.position.set === 'function') {
+                console.log("Setting UI.car from carModel");
+                if (!this.ui) this.ui = {};
+                this.ui.car = this.carModel;
+                this.ui.car.position.set(0, 35, 0);
+                this.ui.car.rotation.set(0, 0, 0);
+                this.ui.car.visible = true;
+            } else {
+                console.warn("No car model available, attempting to load default");
+                // Initialize UI if it doesn't exist
+                if (!this.ui) this.ui = {};
+                if (!this.ui.car) {
+                    // Use car mesh from Car class as fallback
+                    if (this.car && this.car.mesh) {
+                        this.ui.car = this.car.mesh;
+                        this.ui.car.position.set(0, 35, 0);
+                        this.scene.add(this.ui.car);
+                    } else {
+                        // Try to load a default car model if nothing else exists
+                        this.loadCarModel('sedan', '#f25346', () => {
+                            console.log("Default car model loaded");
+                        });
+                    }
+                }
+            }
+            
+            this.difficultyLevel = 1;
+
+            // Reset power-up states
+            this.isBoosting = false;
+            this.isShielded = false;
+            this.hasMagnet = false;
+            this.hasMultiplier = false;
+            this.scoreMultiplier = 1;
+            this.canBoost = true;
+
+            // Set initial environment
+            this.setEnvironment('Day');
+            
+            // Create arrays if they don't exist
+            if (!this.obstacles) this.obstacles = [];
+            if (!this.collectibles) this.collectibles = [];
+            
+            // Clear all previous obstacles
+            if (Array.isArray(this.obstacles)) {
+                this.obstacles.forEach(obstacle => {
+                    if (obstacle && obstacle.mesh && this.scene) {
+                        this.scene.remove(obstacle.mesh);
+                    }
+                });
+                this.obstacles = [];
+            }
+            
+            // Clear all previous collectibles
+            if (Array.isArray(this.collectibles)) {
+                this.collectibles.forEach(collectible => {
+                    if (collectible && collectible.mesh && this.scene) {
+                        this.scene.remove(collectible.mesh);
+                    }
+                });
+                this.collectibles = [];
+            }
+            
+            // Make sure camera is in position
+            if (this.ui && this.ui.camera) {
+                if (typeof this.ui.camera.position.set === 'function') {
+                    this.ui.camera.position.set(-350, 200, 0);
+                } else if (this.ui.camera.position) {
+                    this.ui.camera.position.x = -350;
+                    this.ui.camera.position.y = 200;
+                    this.ui.camera.position.z = 0;
+                }
+            }
+            
+            // Set current timestamp
+            this.lastUpdateTime = Date.now();
+            this.lastObstacleTime = Date.now();
+            this.lastCoinTime = Date.now();
+            this.lastPowerUpTime = Date.now();
+            
+            console.log("Game started successfully");
         },
 
         loop(deltaTime) {
@@ -1219,107 +1394,6 @@ export default {
 
         onActivateBoost() {
             this.activateBoost();
-        },
-
-        startGame() {
-            console.log("Starting game");
-            this.gameStarted = true;
-            this.gameOver = false;
-            this.gamePaused = false;
-
-            // Initialize or reset game state
-            this.score = 0;
-            this.coins = 0;
-            this.gameSpeed = 2;
-            this.distanceTraveled = 0;
-            this.carLane = 1;
-            this.targetLaneZ = 0;
-            
-            // Ensure the car is properly positioned and visible
-            if (this.ui && this.ui.car && typeof this.ui.car.position.set === 'function') {
-                this.ui.car.position.set(0, 35, 0);
-                this.ui.car.rotation.set(0, 0, 0);
-                this.ui.car.visible = true;
-                console.log("Car position reset and set to visible");
-            } else if (this.carModel && typeof this.carModel.position.set === 'function') {
-                console.log("Setting UI.car from carModel");
-                if (!this.ui) this.ui = {};
-                this.ui.car = this.carModel;
-                this.ui.car.position.set(0, 35, 0);
-                this.ui.car.rotation.set(0, 0, 0);
-                this.ui.car.visible = true;
-            } else {
-                console.warn("No car model available, attempting to load default");
-                // Initialize UI if it doesn't exist
-                if (!this.ui) this.ui = {};
-                if (!this.ui.car) {
-                    // Use car mesh from Car class as fallback
-                    if (this.car && this.car.mesh) {
-                        this.ui.car = this.car.mesh;
-                        this.ui.car.position.set(0, 35, 0);
-                        this.scene.add(this.ui.car);
-                    } else {
-                        // Try to load a default car model if nothing else exists
-                        this.loadCarModel('sedan', '#f25346');
-                    }
-                }
-            }
-            
-            this.difficultyLevel = 1;
-
-            // Reset power-up states
-            this.isBoosting = false;
-            this.isShielded = false;
-            this.hasMagnet = false;
-            this.hasMultiplier = false;
-            this.scoreMultiplier = 1;
-            this.canBoost = true;
-
-            // Set initial environment
-            this.setEnvironment('Day');
-            
-            // Create arrays if they don't exist
-            if (!this.obstacles) this.obstacles = [];
-            if (!this.collectibles) this.collectibles = [];
-            
-            // Clear all previous obstacles
-            if (Array.isArray(this.obstacles)) {
-                this.obstacles.forEach(obstacle => {
-                    if (obstacle && obstacle.mesh && this.scene) {
-                        this.scene.remove(obstacle.mesh);
-                    }
-                });
-                this.obstacles = [];
-            }
-            
-            // Clear all previous collectibles
-            if (Array.isArray(this.collectibles)) {
-                this.collectibles.forEach(collectible => {
-                    if (collectible && collectible.mesh && this.scene) {
-                        this.scene.remove(collectible.mesh);
-                    }
-                });
-                this.collectibles = [];
-            }
-            
-            // Make sure camera is in position
-            if (this.ui && this.ui.camera) {
-                if (typeof this.ui.camera.position.set === 'function') {
-                    this.ui.camera.position.set(-350, 200, 0);
-                } else if (this.ui.camera.position) {
-                    this.ui.camera.position.x = -350;
-                    this.ui.camera.position.y = 200;
-                    this.ui.camera.position.z = 0;
-                }
-            }
-            
-            // Set current timestamp
-            this.lastUpdateTime = Date.now();
-            this.lastObstacleTime = Date.now();
-            this.lastCoinTime = Date.now();
-            this.lastPowerUpTime = Date.now();
-            
-            console.log("Game started successfully");
         },
 
         pauseGame() {

@@ -295,33 +295,71 @@ export default {
             const width = container.clientWidth;
             const height = container.clientHeight || 300;
 
-            // Create the scene
+            // Create the scene with a nicer background
             this.scene = new THREE.Scene();
-            this.scene.background = new THREE.Color(0xf7d9aa); // Lighter background color
+            
+            // Create a nicer background with gradient sky
+            const skyGeo = new THREE.SphereGeometry(500, 32, 32);
+            const skyMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    topColor: { value: new THREE.Color(0x0077ff) },
+                    bottomColor: { value: new THREE.Color(0xffffff) },
+                    offset: { value: 33 },
+                    exponent: { value: 0.6 }
+                },
+                vertexShader: `
+                    varying vec3 vWorldPosition;
+                    void main() {
+                        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                        vWorldPosition = worldPosition.xyz;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 topColor;
+                    uniform vec3 bottomColor;
+                    uniform float offset;
+                    uniform float exponent;
+                    varying vec3 vWorldPosition;
+                    void main() {
+                        float h = normalize(vWorldPosition + offset).y;
+                        gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+                    }
+                `,
+                side: THREE.BackSide
+            });
+            const sky = new THREE.Mesh(skyGeo, skyMat);
+            this.scene.add(sky);
 
-            // Add lighting
+            // Add lighting for better visuals
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             this.scene.add(ambientLight);
 
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(1, 1, 1);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(1, 1, 0.5);
             directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 500;
             this.scene.add(directionalLight);
 
-            const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
             backLight.position.set(-1, 0.5, -1);
             this.scene.add(backLight);
 
-            // Create camera - position further away to see full car
+            // Create camera with better positioning
             this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
-            this.camera.position.set(0, 3, 20); // Moved further back
+            this.camera.position.set(0, 5, 20); // Moved further back and up
             this.camera.lookAt(0, 0, 0);
 
-            // Create renderer
+            // Create renderer with better shadows
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
             this.renderer.setSize(width, height);
             this.renderer.setPixelRatio(window.devicePixelRatio);
             this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            this.renderer.toneMappingExposure = 1.2;
             container.appendChild(this.renderer.domElement);
 
             // Add orbit controls with better defaults
@@ -333,26 +371,58 @@ export default {
             this.controls.maxPolarAngle = Math.PI / 2;
             
             // Start with a better default view
-            this.controls.target.set(0, 0, 0);
+            this.controls.target.set(0, 2, 0); // Look at a higher point
             this.controls.update();
 
-            // Create a ground plane
-            const groundGeometry = new THREE.PlaneGeometry(50, 50);
+            // Create a nicer ground
+            // Create a textured ground
+            const groundSize = 100;
+            const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
+            
+            // Create a canvas for the ground texture
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // Fill with base color
+            ctx.fillStyle = '#888888';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Add a grid pattern
+            ctx.strokeStyle = '#777777';
+            ctx.lineWidth = 1;
+            const gridSize = 32;
+            
+            for (let i = 0; i <= canvas.width; i += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            
+            // Create texture from canvas
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(4, 4);
+            
             const groundMaterial = new THREE.MeshStandardMaterial({
-                color: 0x999999,
-                roughness: 0.8,
-                metalness: 0.2
+                map: texture,
+                roughness: 0.9,
+                metalness: 0.1
             });
+            
             const ground = new THREE.Mesh(groundGeometry, groundMaterial);
             ground.rotation.x = -Math.PI / 2;
             ground.receiveShadow = true;
-            ground.position.y = -2; // Lower the ground a bit
+            ground.position.y = 0; // Set at origin height
             this.scene.add(ground);
-
-            // Add a grid helper
-            const gridHelper = new THREE.GridHelper(50, 50, 0x000000, 0x444444);
-            gridHelper.position.y = -1.99; // Just above ground
-            this.scene.add(gridHelper);
 
             // Start animation loop
             this.startAnimation();
@@ -374,9 +444,45 @@ export default {
                 (model) => {
                     this.currentModel = model;
 
-                    // Apply selected color
+                    // Apply selected color to the main body
                     const colorHex = parseInt(this.carColors[this.selectedColorIndex].hex.replace('#', '0x'));
-                    this.vehicleLoader.setVehicleColor(model, colorHex);
+                    
+                    // First pass: Identify wheels and windows to make them black
+                    model.traverse(child => {
+                        if (child.isMesh) {
+                            const name = child.name.toLowerCase();
+                            
+                            // Make wheels black
+                            if (name.includes('wheel') || name.includes('tire')) {
+                                // Create a black material for wheels
+                                const blackMaterial = new THREE.MeshStandardMaterial({
+                                    color: 0x222222,
+                                    roughness: 0.7,
+                                    metalness: 0.5
+                                });
+                                
+                                child.material = blackMaterial;
+                            }
+                            // Make windows a translucent blue-black
+                            else if (name.includes('window') || name.includes('glass') || name.includes('windshield')) {
+                                // Create a glass-like material
+                                const glassMaterial = new THREE.MeshPhysicalMaterial({
+                                    color: 0x111a2b,
+                                    roughness: 0.1,
+                                    metalness: 0.9,
+                                    transparent: true,
+                                    opacity: 0.7,
+                                    envMapIntensity: 1
+                                });
+                                
+                                child.material = glassMaterial;
+                            }
+                            // Apply car color to body parts
+                            else {
+                                this.vehicleLoader.setVehicleColor(child, colorHex);
+                            }
+                        }
+                    });
 
                     // Prepare for animation - don't animate wheels in preview
                     this.vehicleLoader.prepareForAnimation(model, false);
@@ -386,10 +492,10 @@ export default {
                     const size = box.getSize(new THREE.Vector3());
                     const center = box.getCenter(new THREE.Vector3());
                     
-                    // Reset position to center horizontally but sit on ground
+                    // Reset position to center horizontally but float above ground
                     model.position.x = -center.x;
                     model.position.z = -center.z;
-                    model.position.y = -box.min.y; // Place bottom of car on ground
+                    model.position.y = 2; // Place car 2 units above ground
                     
                     // Make sure wheels are properly attached
                     model.traverse(child => {
@@ -404,11 +510,14 @@ export default {
                     // Add to scene
                     this.scene.add(model);
 
-                    // Adjust camera to focus on model
-                    this.controls.target.set(0, size.y/3, 0); // Focus on car body
+                    // Adjust camera based on car size
+                    const maxDimension = Math.max(size.x, size.y, size.z);
+                    const distance = maxDimension * 3.5; // Scale camera distance by car size
+                    this.camera.position.set(0, maxDimension * 0.7, distance);
+                    this.controls.target.set(0, maxDimension * 0.3, 0); // Focus on car body
                     this.controls.update();
                     
-                    console.log(`Model ${modelFile} loaded successfully`);
+                    console.log(`Model ${modelFile} loaded successfully with size:`, size);
                 },
                 (xhr) => {
                     console.log((xhr.loaded / xhr.total * 100) + '% loaded');

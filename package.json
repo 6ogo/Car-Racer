@@ -1,46 +1,48 @@
 {
-    "name": "car-racer",
-    "version": "1.0.0",
-    "description": "A simple car racing game",
-    "private": true,
-    "scripts": {
-      "serve": "vue-cli-service serve",
-      "build": "vue-cli-service build --skip-plugins @vue/cli-plugin-eslint",
-      "lint": "vue-cli-service lint",
-      "vercel-build": "vue-cli-service build --skip-plugins @vue/cli-plugin-eslint"
+  "name": "car-racer",
+  "version": "1.0.0",
+  "description": "A simple car racing game",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build --skip-plugins @vue/cli-plugin-eslint",
+    "lint": "vue-cli-service lint",
+    "vercel-build": "vue-cli-service build --skip-plugins @vue/cli-plugin-eslint"
+  },
+  "dependencies": {
+    "three": "^0.135.0",
+    "vue": "^2.6.14",
+    "vue-router": "^3.5.3",
+    "vue-threejs": "^0.2.0-alpha.1",
+    "dat.gui": "^0.7.9",
+    "oimo": "^1.0.9"
+  },
+  "devDependencies": {
+    "@vue/cli-plugin-babel": "~4.5.0",
+    "@vue/cli-plugin-eslint": "~4.5.0",
+    "@vue/cli-service": "~4.5.0",
+    "babel-eslint": "^10.1.0",
+    "eslint": "^6.7.2",
+    "eslint-plugin-vue": "^6.2.2",
+    "vue-template-compiler": "^2.6.14"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "node": true
     },
-    "dependencies": {
-      "three": "^0.135.0",
-      "vue": "^2.6.14",
-      "vue-router": "^3.5.3",
-      "vue-threejs": "^0.2.0-alpha.1"
+    "extends": [
+      "plugin:vue/essential",
+      "eslint:recommended"
+    ],
+    "parserOptions": {
+      "parser": "babel-eslint"
     },
-    "devDependencies": {
-      "@vue/cli-plugin-babel": "~4.5.0",
-      "@vue/cli-plugin-eslint": "~4.5.0",
-      "@vue/cli-service": "~4.5.0",
-      "babel-eslint": "^10.1.0",
-      "eslint": "^6.7.2",
-      "eslint-plugin-vue": "^6.2.2",
-      "vue-template-compiler": "^2.6.14"
-    },
-    "eslintConfig": {
-      "root": true,
-      "env": {
-        "node": true
-      },
-      "extends": [
-        "plugin:vue/essential",
-        "eslint:recommended"
-      ],
-      "parserOptions": {
-        "parser": "babel-eslint"
-      },
-      "rules": {
-        "no-console": "off",
-        "no-debugger": "off",
-        "no-unused-vars": "warn",
-        "no-undef": "warn"
-      }
+    "rules": {
+      "no-console": "off",
+      "no-debugger": "off",
+      "no-unused-vars": "warn",
+      "no-undef": "warn"
     }
   }
+}

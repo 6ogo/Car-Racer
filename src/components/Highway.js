@@ -498,44 +498,54 @@ export default class Highway {
   }
 
   // Check if player car collects coins, with optional radius multiplier for magnet power-up
-  checkCoinCollections(carPosition, radiusMultiplier = 1) {
+  checkCoinCollections(carPosition, radiusMultiplier = 1, valueMultiplier = 1) {
     const carBoundingBox = {
       xMin: carPosition.x - (40 * radiusMultiplier),
       xMax: carPosition.x + (40 * radiusMultiplier),
       zMin: carPosition.z - (25 * radiusMultiplier),
       zMax: carPosition.z + (25 * radiusMultiplier)
-    }
-
-    let collectedCoins = []
-
+    };
+  
+    let collectedCoins = [];
+    let totalValue = 0;
+  
     for (let i = 0; i < this.coins.length; i++) {
-      const coin = this.coins[i]
+      const coin = this.coins[i];
       const coinBoundingBox = {
         xMin: coin.mesh.position.x - 15,
         xMax: coin.mesh.position.x + 15,
         zMin: coin.mesh.position.z - 15,
         zMax: coin.mesh.position.z + 15
-      }
-
+      };
+  
       // Simple AABB collision detection
       if (carBoundingBox.xMax > coinBoundingBox.xMin &&
         carBoundingBox.xMin < coinBoundingBox.xMax &&
         carBoundingBox.zMax > coinBoundingBox.zMin &&
         carBoundingBox.zMin < coinBoundingBox.zMax) {
-
+  
         // Mark this coin for collection
-        collectedCoins.push(i)
+        collectedCoins.push(i);
+        
+        // Apply value multiplier if provided
+        if (valueMultiplier > 1) {
+          totalValue += valueMultiplier;
+        }
       }
     }
-
+  
     // Remove collected coins (from end to beginning to avoid index issues)
     for (let i = collectedCoins.length - 1; i >= 0; i--) {
-      const index = collectedCoins[i]
-      const coin = this.coins[index]
-      this.mesh.remove(coin.mesh)
-      this.coins.splice(index, 1)
+      const index = collectedCoins[i];
+      const coin = this.coins[index];
+      this.mesh.remove(coin.mesh);
+      this.coins.splice(index, 1);
     }
-
-    return collectedCoins.length
+  
+    // Return object with count and value
+    return {
+      count: collectedCoins.length,
+      value: totalValue > 0 ? totalValue : collectedCoins.length
+    };
   }
-}
+} 

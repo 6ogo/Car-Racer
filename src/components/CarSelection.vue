@@ -1,6 +1,20 @@
 <!-- src/components/CarSelection.vue -->
 <template>
     <div class="car-selection">
+        <div class="controls-section">
+            <div class="instructions">
+                <p>Use ← → to change lanes</p>
+                <p>Use ↑ ↓ for minor adjustments</p>
+                <p>Press SPACE to pause</p>
+            </div>
+            <div class="sound-settings">
+                <button @click="toggleSound" class="sound-button">
+                    {{ soundMuted ? 'Sound: OFF' : 'Sound: ON' }}
+                </button>
+            </div>
+            <div class="high-score">High Score: {{ highScore }}</div>
+        </div>
+        
         <h2>Select Your Ride</h2>
 
         <div class="preview-container">
@@ -63,6 +77,17 @@ import VehicleLoader from './VehicleLoader';
 
 export default {
     name: 'CarSelection',
+
+    props: {
+        highScore: {
+            type: Number,
+            default: 0
+        },
+        soundMuted: {
+            type: Boolean,
+            default: false
+        }
+    },
 
     data() {
         return {
@@ -435,6 +460,10 @@ export default {
             }
         },
 
+        toggleSound() {
+            this.$emit('toggle-sound');
+        },
+
         startGame() {
             console.log("Start Race button clicked");
             // Combine car data with selected color
@@ -446,6 +475,7 @@ export default {
 
             // Emit the selected car data to the parent component
             this.$emit('car-selected', carData);
+            this.$emit('start-game');
         }
     }
 };
@@ -453,6 +483,9 @@ export default {
 
 <style scoped>
 .car-selection {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.8);
@@ -460,18 +493,53 @@ export default {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 20px;
-    color: white;
     z-index: 100;
-    position: absolute;
-    top: 0;
-    left: 0;
+    color: white;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
-h2 {
-    font-size: 36px;
-    margin-bottom: 30px;
-    text-shadow: 0 0 10px rgba(255, 215, 0, 0.7);
+.controls-section {
+    position: absolute;
+    top: 20px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.instructions {
+    text-align: center;
+    font-size: 18px;
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
+.sound-settings {
+    margin-bottom: 15px;
+}
+
+.sound-button {
+    background-color: #5555ff;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.sound-button:hover {
+    background-color: #4444cc;
+}
+
+.high-score {
+    font-size: 18px;
+    font-weight: bold;
+    color: gold;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
 }
 
 .preview-container {

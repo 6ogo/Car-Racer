@@ -8,7 +8,7 @@ export default class RoadGenerator {
     this.roadSegments = [];
     this.activeRoads = [];
     this.branchingRoads = [];
-    this.maxSegments = 20;
+    this.maxSegments = 30; 
     this.segmentLength = 500;
     this.roadWidth = 300;
     this.currentSegmentIndex = 0;
@@ -29,7 +29,7 @@ export default class RoadGenerator {
       { 
         id: 'main',
         segments: [],
-        position: new THREE.Vector3(0, 0, 0),
+        position: new THREE.Vector3(-1000, 0, 0), 
         direction: new THREE.Vector3(1, 0, 0),
         turnAngle: 0,
         active: true
@@ -44,8 +44,8 @@ export default class RoadGenerator {
   }
   
   initRoad() {
-    // Create initial straight segments
-    for (let i = 0; i < 5; i++) {
+    // Create more initial straight segments to extend road behind the camera
+    for (let i = 0; i < 10; i++) {
       this.addStraightSegment('main');
     }
   }

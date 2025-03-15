@@ -137,7 +137,7 @@ export default {
                 mouse: { x: 0, y: 0 },
                 car: {
                     scale: 0.25,
-                    position: { x: 0, y: 30, z: 0 },
+                    position: { x: 0, y: 35, z: 0 }, // Initial position adjusted to avoid crashes
                     rotation: { z: 0 }
                 },
                 highway: {
@@ -152,7 +152,7 @@ export default {
                     position: { x: 150, y: 350, z: 350 }
                 },
                 camera: {
-                    position: { x: -150, y: 100, z: 0 }
+                    position: { x: -350, y: 200, z: 0 }
                 },
                 truck: {
                     position: { x: 100, y: 30, z: 0 },
@@ -176,7 +176,7 @@ export default {
             gamePaused: false,
             showingCarSelection: false,
             obstacleSpawnRate: 0.01,
-            coinSpawnRate: 0.02,
+            coinSpawnRate: 0.01, // Reduced from 0.02 to spawn fewer coins
             powerUpSpawnRate: 0.005,
             distanceTraveled: 0,
             keyState: {
@@ -420,6 +420,12 @@ export default {
                 nearPlane,
                 farPlane
             );
+
+            // Position camera further back and higher to see more of the map
+            camera.position.set(-350, 200, 0); 
+            
+            // Look slightly down and ahead
+            camera.lookAt(new THREE.Vector3(100, 0, 0));
 
             return camera;
         },
@@ -804,7 +810,7 @@ export default {
             // Get the delta time if not provided
             deltaTime = deltaTime || 0.016; // Default to 60fps if not provided
             
-            // Forward movement - car always moves forward
+            // Forward movement - car always moves forward regardless of input
             if (this.ui && this.ui.car) {
                 // Base forward speed
                 let forwardSpeed = this.gameSpeed;
@@ -847,19 +853,32 @@ export default {
                 this.keyState.KeyD = false;
             }
 
-            // Smoothly move car towards target lane
-            const diff = this.targetLaneZ - this.ui.car.position.z;
-            if (Math.abs(diff) > 1) {
-                this.ui.car.position.z += diff * this.laneChangeSpeed * this.carTurnSpeed;
-
-                // Tilt the car during lane change
-                this.ui.car.rotation.z = -diff * 0.002;
-            } else {
-                this.ui.car.rotation.z = 0;
+            // Smoothly move car towards target lane - using translation instead of rotation
+            if (this.ui && this.ui.car) {
+                const diff = this.targetLaneZ - this.ui.car.position.z;
+                if (Math.abs(diff) > 1) {
+                    // Move car sideways - smoother transition
+                    this.ui.car.position.z += diff * this.laneChangeSpeed * this.carTurnSpeed;
+                    
+                    // Instead of rotating the entire car, just apply a slight tilt in the direction of movement
+                    // This creates a more natural leaning effect during lane changes
+                    if (diff > 0) {
+                        // Moving right - tilt slightly clockwise around forward axis
+                        this.ui.car.rotation.x = 0;
+                        this.ui.car.rotation.z = -Math.min(0.05, Math.abs(diff * 0.0005));
+                    } else {
+                        // Moving left - tilt slightly counter-clockwise around forward axis
+                        this.ui.car.rotation.x = 0;
+                        this.ui.car.rotation.z = Math.min(0.05, Math.abs(diff * 0.0005));
+                    }
+                } else {
+                    // Return to normal orientation gradually
+                    this.ui.car.rotation.z *= 0.9;
+                }
             }
 
-            // Get information about the nearest lane
-            if (this.roadGenerator) {
+            // Get information about the nearest lane (if roadGenerator exists)
+            if (this.roadGenerator && this.ui && this.ui.car) {
                 const laneInfo = this.roadGenerator.getNearestLanePosition(this.ui.car.position);
 
                 if (laneInfo) {
@@ -872,26 +891,26 @@ export default {
                         this.ui.car.position.z += diff * 0.02;
                     }
 
-                    // Update car rotation to follow road curve
+                    // Update car rotation to follow road curve (subtle effect)
                     const roadAhead = this.roadGenerator.getRoadAhead(this.ui.car.position, 100);
                     if (roadAhead && roadAhead.pathType === 'curve_left') {
-                        this.ui.car.rotation.y = Math.max(-0.1, this.ui.car.rotation.y - 0.001);
+                        this.ui.car.rotation.y = Math.max(-0.05, this.ui.car.rotation.y - 0.001);
                     } else if (roadAhead && roadAhead.pathType === 'curve_right') {
-                        this.ui.car.rotation.y = Math.min(0.1, this.ui.car.rotation.y + 0.001);
+                        this.ui.car.rotation.y = Math.min(0.05, this.ui.car.rotation.y + 0.001);
                     } else {
                         // Gradually return to straight
-                        this.ui.car.rotation.y *= 0.98;
+                        this.ui.car.rotation.y *= 0.95;
                     }
                 }
             }
 
             // Add subtle car movement for realism
             if (this.ui && this.ui.car) {
-                this.ui.car.position.y = 30 + Math.sin(this.distanceTraveled * 0.02) * 0.5;
+                this.ui.car.position.y = 35 + Math.sin(this.distanceTraveled * 0.02) * 0.5;
             }
 
             // If boosting, add trail effect
-            if (this.isBoosting && this.effectsManager) {
+            if (this.isBoosting && this.effectsManager && this.ui && this.ui.car) {
                 this.effectsManager.createTrail(this.ui.car, 0xff6600, 20, 0.8);
             }
         },
@@ -905,7 +924,7 @@ export default {
             }
 
             // Adjust camera position slightly based on mouse for more dynamic feel
-            const targetCameraX = -150 + this.ui.mouse.x * 10;
+            const targetCameraX = -350 + this.ui.mouse.x * 10;
             this.ui.camera.position.x += (targetCameraX - this.ui.camera.position.x) * 0.02;
         },
 
@@ -1215,7 +1234,25 @@ export default {
             this.distanceTraveled = 0;
             this.carLane = 1;
             this.targetLaneZ = 0;
-            this.ui.car.position.z = 0;
+            
+            // Ensure the car is properly positioned and visible
+            if (this.ui && this.ui.car) {
+                this.ui.car.position.set(0, 35, 0);
+                this.ui.car.rotation.set(0, 0, 0);
+                this.ui.car.visible = true;
+                console.log("Car position reset and set to visible");
+            } else if (this.carModel) {
+                console.log("Setting UI.car from carModel");
+                this.ui.car = this.carModel;
+                this.ui.car.position.set(0, 35, 0);
+                this.ui.car.rotation.set(0, 0, 0);
+                this.ui.car.visible = true;
+            } else {
+                console.warn("No car model available, attempting to load default");
+                // Try to load a default car model if none exists
+                this.loadCarModel('sedan', '#f25346');
+            }
+            
             this.difficultyLevel = 1;
 
             // Reset power-up states
@@ -1228,21 +1265,38 @@ export default {
 
             // Set initial environment
             this.setEnvironment('Day');
-            this.lastEnvironmentChangeTime = Date.now();
-
-            // Initialize the audio
-            if (!this.audioManager.initialized) {
-                this.audioManager.init();
+            
+            // Clear all previous obstacles and coins
+            this.obstacles.forEach(obstacle => {
+                if (obstacle.mesh && this.scene) {
+                    this.scene.remove(obstacle.mesh);
+                }
+            });
+            this.obstacles = [];
+            
+            this.collectibles.forEach(collectible => {
+                if (collectible.mesh && this.scene) {
+                    this.scene.remove(collectible.mesh);
+                }
+            });
+            this.collectibles = [];
+            
+            // Reset timestamps
+            this.lastObstacleTime = Date.now();
+            this.lastCoinTime = Date.now();
+            this.lastPowerUpTime = Date.now();
+            
+            // Make sure camera is in position
+            if (this.ui && this.ui.camera) {
+                this.ui.camera.position.x = -350;
+                this.ui.camera.position.y = 200;
+                this.ui.camera.position.z = 0;
             }
-
-            // Start background music/engine sound
-            this.audioManager.play('engine');
-            this.audioManager.setVolume('engine', 0.5);
-
-            // Make sure game area has focus for keyboard controls
-            if (this.$el && typeof this.$el.focus === 'function') {
-                this.$el.focus();
-            }
+            
+            // Set current timestamp
+            this.lastUpdateTime = Date.now();
+            
+            console.log("Game started successfully");
         },
 
         pauseGame() {
